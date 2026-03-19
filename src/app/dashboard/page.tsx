@@ -82,19 +82,20 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* DATE PICKER */}
-      <div style={{ marginTop: 20 }}>
-        <DatePicker
-          selected={startDate}
-          onChange={(date: Date | null) => setStartDate(date)}
-          placeholderText="Start Date"
-        />
+     {/* DATE PICKER */}
+<div style={{ marginTop: 20 }}>
+  <DatePicker
+    selected={startDate}
+    onChange={(date: Date | null) => setStartDate(date)}
+    placeholderText="Start Date"
+  />
 
-        <DatePicker
-          selected={endDate}
-          onChange={(date) => setEndDate(date)}
-          placeholderText="End Date"
-        />
+  <DatePicker
+    selected={endDate}
+    onChange={(date: Date | null) => setEndDate(date)}
+    placeholderText="End Date"
+  />
+</div>
 
         <button onClick={fetchData}>Filter</button>
       </div>
