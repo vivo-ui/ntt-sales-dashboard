@@ -86,7 +86,7 @@ export default function Dashboard() {
       <div style={{ marginTop: 20 }}>
         <DatePicker
           selected={startDate}
-          onChange={(date) => setStartDate(date)}
+          onChange={(date: Date | null) => setStartDate(date)}
           placeholderText="Start Date"
         />
 
