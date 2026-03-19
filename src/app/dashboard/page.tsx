@@ -57,20 +57,24 @@ export default function Dashboard() {
   }
 
   return (
-    <div style={{
-      padding: 20,
-      background: '#020617',
-      minHeight: '100vh',
-      color: 'white'
-    }}>
+    <div
+      style={{
+        padding: 20,
+        background: '#020617',
+        minHeight: '100vh',
+        color: 'white',
+      }}
+    >
       <h1>📊 Dashboard</h1>
 
       {/* SUMMARY */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(2,1fr)',
-        gap: 20
-      }}>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2,1fr)',
+          gap: 20,
+        }}
+      >
         <div style={card}>
           <h3>Omzet</h3>
           Rp {totalOmzet.toLocaleString()}
@@ -82,29 +86,30 @@ export default function Dashboard() {
         </div>
       </div>
 
-     {/* DATE PICKER */}
-<div style={{ marginTop: 20 }}>
-  <DatePicker
-    selected={startDate}
-    onChange={(date: Date | null) => setStartDate(date)}
-    placeholderText="Start Date"
-  />
+      {/* DATE PICKER */}
+      <div style={{ marginTop: 20 }}>
+        <DatePicker
+          selected={startDate}
+          onChange={(date: Date | null) => setStartDate(date)}
+          placeholderText="Start Date"
+        />
 
-  <DatePicker
-    selected={endDate}
-    onChange={(date: Date | null) => setEndDate(date)}
-    placeholderText="End Date"
-  />
-</div>
-
-        <button onClick={fetchData}>Filter</button>
+        <DatePicker
+          selected={endDate}
+          onChange={(date: Date | null) => setEndDate(date)}
+          placeholderText="End Date"
+        />
       </div>
+
+      <button onClick={fetchData} style={{ marginTop: 10 }}>
+        Filter
+      </button>
 
       {/* DATA */}
       <div style={{ marginTop: 20 }}>
         {data.map((item, i) => (
           <div key={i} style={card}>
-            {item.stores?.["NAMA TOKO"]} - {item.qty}
+            {item.stores?.['NAMA TOKO']} - {item.qty}
           </div>
         ))}
       </div>
