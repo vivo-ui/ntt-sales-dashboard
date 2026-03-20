@@ -3,199 +3,219 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer
 } from 'recharts'
 import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
 
 export default function DashboardManager() {
-  const [data, setData] = useState<any[]>([])
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+  const [sales, setSales] = useState<any[]>([])
+  const [targets, setTargets] = useState<any[]>([])
+  const [pics, setPics] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const [selectedPic, setSelectedPic] = useState('')
 
   useEffect(() => {
-    fetchData()
+    fetchAll()
   }, [])
 
-  useEffect(() => {
-    fetchData()
-  }, [startDate, endDate])
+  // ================= FETCH ALL =================
+  const fetchAll = async () => {
+    setLoading(true)
 
-const fetchData = async () => {
-  // ambil sales
-  const { data: sales, error: err1 } = await supabase
-    .from('sales_reports')
-    .select('*')
+    // 🔥 AMBIL SEMUA PIC (WAJIB DARI PROFILES)
+    const { data: picData } = await supabase
+      .from('profiles')
+      .select('id, email, role')
+      .eq('role', 'pic')
 
-  if (err1) {
-    console.log(err1)
-    return
+    // 🔥 SALES
+    const { data: salesData } = await supabase
+      .from('sales_reports')
+      .select(`
+        qty,
+        imei,
+        created_at,
+        stores!sales_reports_store_id_fkey (name),
+        products!sales_reports_product_id_fkey (name, price),
+        profiles:user_id (id, email)
+      `)
+
+    // 🔥 TARGET
+    const { data: targetData } = await supabase
+      .from('targets')
+      .select('*')
+
+    setPics(picData || [])
+    setSales(salesData || [])
+    setTargets(targetData || [])
+
+    setLoading(false)
   }
 
-  // ambil products
-  const { data: products, error: err2 } = await supabase
-    .from('products')
-    .select('*')
+  // ================= FILTER PIC =================
+  const filteredPics = selectedPic
+    ? pics.filter(p => p.email === selectedPic)
+    : pics
 
-  if (err2) {
-    console.log(err2)
-    return
-  }
+  // ================= PROCESS =================
+  const finalData = filteredPics.map((pic: any) => {
+    // ambil sales milik PIC ini
+    const userSales = sales.filter(
+      s => s.profiles?.id === pic.id
+    )
 
-  // mapping product
-  const productMap: any = {}
-  products?.forEach((p: any) => {
-    productMap[p.id] = p
-  })
+    const unit = userSales.reduce(
+      (sum, s) => sum + Number(s.qty ?? 1),
+      0
+    )
 
-  // inject product ke sales
-  const finalData = sales.map((s: any) => ({
-    ...s,
-    products: productMap[s.product_id] || null
-  }))
+    const omzet = userSales.reduce(
+      (sum, s) => sum + (Number(s.qty ?? 1) * Number(s.products?.price ?? 0)),
+      0
+    )
 
-  console.log('🔥 FINAL DATA:', finalData)
+    // ambil target
+    const target = targets.find(t => t.user_id === pic.id)
 
-  setData(finalData || [])
-}
-  // ✅ PROSES DATA (TIDAK BUANG DATA LAGI)
-  const processed = data.map((item) => {
-    const unit = Number(item.qty ?? 0)
-    const price = Number(item.products?.price ?? 0)
+    const targetUnit = target?.target_unit || 0
+    const targetOmzet = target?.target_omzet || 0
+
+    const percent =
+      targetUnit > 0 ? Math.round((unit / targetUnit) * 100) : 0
 
     return {
-      toko: item.store_id ?? 'Unknown',
-      email: item.profiles?.email ?? 'Unknown',
+      email: pic.email,
       unit,
-      omzet: unit * price
+      omzet,
+      targetUnit,
+      targetOmzet,
+      percent,
+      sales: userSales // untuk export detail
     }
   })
 
-  // ✅ TOTAL
-  const totalUnit = processed.reduce((s, i) => s + i.unit, 0)
-  const totalOmzet = processed.reduce((s, i) => s + i.omzet, 0)
+  // ================= SORT =================
+  const ranking = finalData.sort((a, b) => b.percent - a.percent)
 
-  const formatRupiah = (angka: number) =>
-    new Intl.NumberFormat('id-ID').format(angka || 0)
+  // ================= TOTAL =================
+  const totalUnit = finalData.reduce((s, i) => s + i.unit, 0)
+  const totalOmzet = finalData.reduce((s, i) => s + i.omzet, 0)
 
-  // 🏆 RANKING PIC
-  const ranking = Object.values(
-    processed.reduce((acc: any, item: any) => {
-      const key = item.email
+  const format = (n: number) =>
+    new Intl.NumberFormat('id-ID').format(n || 0)
 
-      if (!acc[key]) {
-        acc[key] = { email: key, unit: 0, omzet: 0 }
-      }
-
-      acc[key].unit += item.unit
-      acc[key].omzet += item.omzet
-
-      return acc
-    }, {})
-  ).sort((a: any, b: any) => b.unit - a.unit)
-
-  // 📊 GRAFIK PER TOKO
-  const tokoMap: any = {}
-
-  processed.forEach((item) => {
-    const toko = item.toko
-
-    if (!tokoMap[toko]) {
-      tokoMap[toko] = 0
-    }
-
-    tokoMap[toko] += item.omzet
-  })
-
-  const chartData = Object.keys(tokoMap).map((toko) => ({
-    toko,
-    omzet: tokoMap[toko]
+  // ================= CHART =================
+  const chartData = ranking.map(r => ({
+    pic: r.email,
+    omzet: r.omzet
   }))
 
-  // 📥 EXPORT
+  // ================= EXPORT =================
   const exportToExcel = () => {
-    const exportData = processed.map((item) => ({
-      PIC: item.email,
-      Toko: item.toko,
-      Unit: item.unit,
-      Omzet: item.omzet
-    }))
+    let exportRows: any[] = []
 
-    const ws = XLSX.utils.json_to_sheet(exportData)
+    finalData.forEach((pic: any) => {
+      if (pic.sales.length === 0) {
+        // tetap tampil walau belum jual
+        exportRows.push({
+          PIC: pic.email,
+          Toko: '-',
+          Type: '-',
+          IMEI: '-',
+          Unit: 0,
+          Harga: 0,
+          Omzet: 0
+        })
+      } else {
+        pic.sales.forEach((s: any) => {
+          const unit = Number(s.qty ?? 1)
+          const price = Number(s.products?.price ?? 0)
+
+          exportRows.push({
+            PIC: pic.email,
+            Toko: s.stores?.name || '-',
+            Type: s.products?.name || '-',
+            IMEI: s.imei || '-',
+            Unit: unit,
+            Harga: price,
+            Omzet: unit * price
+          })
+        })
+      }
+    })
+
+    if (exportRows.length === 0) {
+      alert('Tidak ada data')
+      return
+    }
+
+    const ws = XLSX.utils.json_to_sheet(exportRows)
+    ws['!cols'] = Object.keys(exportRows[0]).map(() => ({ wch: 20 }))
+
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Report')
+    XLSX.utils.book_append_sheet(wb, ws, 'Monitoring')
 
     const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
-    saveAs(new Blob([buf]), 'Sales_Report.xlsx')
+    saveAs(new Blob([buf]), 'Monitoring_Tim.xlsx')
   }
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>🔥 Dashboard Real Sales (IMEI Based)</h1>
+      <h1>🔥 Monitoring Tim & Target</h1>
 
       {/* FILTER */}
-      <div style={{ marginBottom: 10 }}>
-        <input
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-        />
-        {' - '}
-        <input
-          type="date"
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-        />
+      <select
+        value={selectedPic}
+        onChange={(e) => setSelectedPic(e.target.value)}
+      >
+        <option value="">Semua PIC</option>
+        {pics.map((p: any, i) => (
+          <option key={i} value={p.email}>
+            {p.email}
+          </option>
+        ))}
+      </select>
 
-        <button
-          onClick={exportToExcel}
-          style={{
-            marginLeft: 10,
-            padding: '6px 10px',
-            background: '#2563eb',
-            color: 'white',
-            borderRadius: 5,
-            border: 'none'
-          }}
-        >
-          📥 Export
-        </button>
-      </div>
+      <button onClick={exportToExcel} style={{ marginLeft: 10 }}>
+        Export
+      </button>
+
+      {loading && <p>Loading...</p>}
 
       {/* TOTAL */}
       <h2>Total Unit: {totalUnit}</h2>
-      <h2>Total Omzet: Rp {formatRupiah(totalOmzet)}</h2>
+      <h2>Total Omzet: Rp {format(totalOmzet)}</h2>
 
       {/* RANKING */}
-      <h2>🏆 Ranking PIC</h2>
+      <h2>🏆 Monitoring PIC</h2>
 
-      {ranking.length === 0 ? (
-        <p>Tidak ada data</p>
-      ) : (
-        ranking.map((r: any, i) => (
-          <div key={i} style={{ marginBottom: 10 }}>
-            <b>#{i + 1} {r.email}</b><br />
-            📦 {r.unit} unit<br />
-            💰 Rp {formatRupiah(r.omzet)}
-            <hr />
-          </div>
-        ))
-      )}
+      {ranking.map((r: any, i) => (
+        <div key={i} style={{ marginBottom: 10 }}>
+          <b>#{i + 1} {r.email}</b><br />
+          📦 {r.unit} / {r.targetUnit} unit<br />
+          💰 Rp {format(r.omzet)}<br />
+          🎯 {r.percent}% tercapai
+          <hr />
+        </div>
+      ))}
 
       {/* CHART */}
-      <div style={{ width: '100%', height: 300 }}>
-        {chartData.length > 0 ? (
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData}>
-              <XAxis dataKey="toko" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="omzet" />
-            </BarChart>
-          </ResponsiveContainer>
-        ) : (
-          <p>Tidak ada data grafik</p>
-        )}
+      <div style={{ width: '100%', height: '400px' }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData}>
+            <XAxis dataKey="pic" />
+            <YAxis />
+            <Tooltip />
+            <Bar dataKey="omzet" />
+          </BarChart>
+        </ResponsiveContainer>
       </div>
     </div>
   )
