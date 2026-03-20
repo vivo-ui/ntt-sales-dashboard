@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { useRouter } from 'next/navigation'
-// Note: You will need to install 'html5-qrcode' via npm: npm install html5-qrcode
+// Note: Ensure 'html5-qrcode' is installed: npm install html5-qrcode
 import { Html5QrcodeScanner } from 'html5-qrcode'
 
 export default function InputPage() {
@@ -23,9 +23,14 @@ export default function InputPage() {
 
   useEffect(() => {
     fetchData()
+    // Cleanup scanner on unmount
     return () => {
       if (scannerRef.current) {
-        scannerRef.current.clear()
+        try {
+          scannerRef.current.clear()
+        } catch (e) {
+          console.error('Scanner cleanup error:', e)
+        }
       }
     }
   }, [])
@@ -41,12 +46,15 @@ export default function InputPage() {
     }
     
     setUserEmail(email)
-    const picName = email.split('@')[0].toUpperCase()
+    
+    // Prefix extraction for filtering (e.g. 'egi', 'jo', etc.)
+    const picPrefix = email.split('@')[0].toLowerCase()
 
+    // Query stores assigned to this PIC (Case-Insensitive Match)
     const { data: storeData } = await supabase
       .from('stores')
       .select('*')
-      .or(`pic.eq.${picName},pic.eq.${email}`) 
+      .or(`pic.ilike.${picPrefix},pic.eq.${email}`) 
     
     const { data: productData } = await supabase.from('products').select('*')
     
@@ -56,23 +64,39 @@ export default function InputPage() {
 
   const startScanner = () => {
     setIsScanning(true)
+    // Delay to ensure the container element is rendered
     setTimeout(() => {
       const scanner = new Html5QrcodeScanner(
         "reader",
-        { fps: 10, qrbox: { width: 250, height: 250 } },
+        { 
+          fps: 10, 
+          qrbox: { width: 250, height: 250 },
+          aspectRatio: 1.0
+        },
         /* verbose= */ false
       );
       
       scanner.render((decodedText) => {
         setFormData(prev => ({ ...prev, imei: decodedText }))
-        scanner.clear()
-        setIsScanning(false)
+        scanner.clear().then(() => {
+          setIsScanning(false)
+        }).catch(err => console.error(err))
       }, (error) => {
-        // Handle scan error if needed
+        // Scan failures are normal during scanning
       });
       
       scannerRef.current = scanner
     }, 100)
+  }
+
+  const stopScanner = () => {
+    if (scannerRef.current) {
+      scannerRef.current.clear().then(() => {
+        setIsScanning(false)
+      }).catch(err => console.error(err))
+    } else {
+      setIsScanning(false)
+    }
   }
 
   const handleSubmit = async (e: any) => {
@@ -118,6 +142,7 @@ export default function InputPage() {
 
   return (
     <div className="min-h-screen bg-[#0b1326] font-manrope text-[#dae2fd] pb-32">
+      {/* Header */}
       <header className="fixed top-0 w-full z-50 flex justify-between items-center px-6 h-20 bg-[#0b1326]/70 backdrop-blur-xl border-b border-white/5">
         <div className="flex items-center gap-4">
           <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-[#2e5bff] border border-white/10 shadow-lg">
@@ -132,27 +157,38 @@ export default function InputPage() {
       </header>
 
       <main className="pt-28 px-6 space-y-8 max-w-lg mx-auto">
+        {/* Scanner Overlay */}
         {isScanning && (
-          <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center p-6">
-            <div id="reader" className="w-full max-w-sm rounded-3xl overflow-hidden border-2 border-[#2e5bff]"></div>
-            <button 
-              onClick={() => { scannerRef.current?.clear(); setIsScanning(false); }}
-              className="mt-8 px-8 py-3 bg-red-500/20 text-red-500 rounded-full font-bold uppercase tracking-widest border border-red-500/30"
-            >
-              Cancel Scan
-            </button>
+          <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-6">
+            <div className="w-full max-w-sm space-y-8 text-center">
+              <div className="space-y-2">
+                <h3 className="text-2xl font-black text-white">Scanning IMEI</h3>
+                <p className="text-sm text-[#dae2fd]/60">Place the barcode inside the square</p>
+              </div>
+              <div id="reader" className="w-full aspect-square rounded-[2rem] overflow-hidden border-2 border-[#2e5bff] shadow-[0_0_50px_rgba(46,91,255,0.3)]"></div>
+              <button 
+                onClick={stopScanner}
+                className="w-full py-4 bg-white/5 border border-white/10 text-white rounded-2xl font-bold uppercase tracking-widest active:scale-95 transition-all"
+              >
+                Cancel Scan
+              </button>
+            </div>
           </div>
         )}
 
-        <div className="bg-[#131b2e]/60 p-8 rounded-[2.5rem] border border-white/5 shadow-2xl space-y-8">
+        {/* Input Form */}
+        <div className="bg-[#131b2e]/60 p-8 rounded-[2.5rem] border border-white/5 shadow-2xl space-y-8 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-[#2e5bff]/5 blur-[60px] rounded-full -mr-10 -mt-10"></div>
+          
           <div className="space-y-6">
+            {/* Store Selection */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-[#dae2fd]/40 ml-1">Pilih Toko Saya</label>
               <div className="relative">
                 <select 
                   value={formData.storeId}
                   onChange={(e) => setFormData({...formData, storeId: e.target.value})}
-                  className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50 appearance-none"
+                  className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50 appearance-none transition-all"
                 >
                   <option value="">-- Pilih Toko Anda --</option>
                   {stores.length === 0 ? (
@@ -165,13 +201,14 @@ export default function InputPage() {
               </div>
             </div>
 
+            {/* Product Selection */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-[#dae2fd]/40 ml-1">Pilih Produk</label>
               <div className="relative">
                 <select 
                   value={formData.productId}
                   onChange={(e) => setFormData({...formData, productId: e.target.value})}
-                  className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50 appearance-none"
+                  className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50 appearance-none transition-all"
                 >
                   <option value="">-- Pilih Produk --</option>
                   {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -180,6 +217,7 @@ export default function InputPage() {
               </div>
             </div>
 
+            {/* IMEI Input & Scanner */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-[#dae2fd]/40 ml-1">Scan IMEI</label>
               <div className="relative">
@@ -188,18 +226,19 @@ export default function InputPage() {
                   placeholder="Ketik atau scan IMEI"
                   value={formData.imei}
                   onChange={(e) => setFormData({...formData, imei: e.target.value})}
-                  className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50 transition-all"
+                  className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50 transition-all pr-16"
                 />
                 <button 
                   type="button"
                   onClick={startScanner}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 bg-[#2e5bff]/10 px-3 py-1.5 rounded-lg border border-[#2e5bff]/20 active:scale-90 transition-transform"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-[#2e5bff] text-white rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30 active:scale-90 transition-transform"
                 >
-                  <span className="material-icons text-sm text-[#2e5bff]">photo_camera</span>
+                  <span className="material-icons text-xl">photo_camera</span>
                 </button>
               </div>
             </div>
 
+            {/* Qty Selector */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-[#dae2fd]/40 ml-1">Jumlah (Qty)</label>
               <div className="flex items-center justify-between bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4">
@@ -230,17 +269,18 @@ export default function InputPage() {
           </button>
         </div>
 
+        {/* Navigation */}
         <nav className="fixed bottom-0 w-full h-24 bg-[#131b2e]/80 backdrop-blur-2xl border-t border-white/5 flex justify-around items-center px-6 pb-6 z-50">
-          <a href="/dashboard-pic" className="flex flex-col items-center justify-center text-[#dae2fd]/40 hover:text-[#dae2fd] transition-colors">
-            <span className="material-icons text-xl mb-0.5">grid_view</span>
+          <a href="/dashboard-pic" className="flex flex-col items-center justify-center text-[#dae2fd]/40 hover:text-[#dae2fd] transition-colors group">
+            <span className="material-icons text-xl mb-0.5 group-active:scale-90 transition-transform">grid_view</span>
             <span className="text-[8px] font-black uppercase tracking-widest">Dashboard</span>
           </a>
-          <a href="/dashboard-pic/input" className="flex flex-col items-center justify-center text-[#2e5bff] bg-[#222a3d] rounded-2xl px-5 py-2.5 shadow-lg">
+          <a href="/dashboard-pic/input" className="flex flex-col items-center justify-center text-[#2e5bff] bg-[#222a3d] rounded-2xl px-5 py-2.5 shadow-lg border border-white/5">
             <span className="material-icons text-xl mb-0.5">edit_square</span>
             <span className="text-[8px] font-black uppercase tracking-widest">Input</span>
           </a>
-          <button onClick={handleLogout} className="flex flex-col items-center justify-center text-red-400">
-            <span className="material-icons text-xl mb-0.5">logout</span>
+          <button onClick={handleLogout} className="flex flex-col items-center justify-center text-red-400 group">
+            <span className="material-icons text-xl mb-0.5 group-active:scale-90 transition-transform">logout</span>
             <span className="text-[8px] font-black uppercase tracking-widest">Logout</span>
           </button>
         </nav>
