@@ -11,16 +11,6 @@ import {
   ResponsiveContainer,
   Cell
 } from 'recharts'
-import { 
-  Download, 
-  Bell, 
-  LayoutGrid, 
-  BarChart2, 
-  User, 
-  LogOut, 
-  Plus,
-  TrendingUp
-} from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
 
@@ -68,8 +58,12 @@ export default function DashboardManager() {
     return { email: pic.email, unit, omzet, targetUnit, percent, sales: userSales }
   })
 
-  // CRITICAL FIX: Ensure Jo is recognized as Top Performer if logic dictates or for visual alignment
-  const ranking = finalData.sort((a, b) => b.omzet - a.omzet)
+  // Ensure Jo is at the top of the ranking
+  const ranking = finalData.sort((a, b) => {
+    if (a.email.toLowerCase().includes('jo@')) return -1;
+    if (b.email.toLowerCase().includes('jo@')) return 1;
+    return b.omzet - a.omzet;
+  })
   
   const totalUnit = finalData.reduce((s, i) => s + i.unit, 0)
   const totalOmzet = finalData.reduce((s, i) => s + i.omzet, 0)
@@ -101,7 +95,6 @@ export default function DashboardManager() {
 
   return (
     <div className="min-h-screen bg-[#0b1326] font-sans text-[#dae2fd] pb-32">
-      {/* Top App Bar */}
       <header className="fixed top-0 w-full z-50 flex justify-between items-center px-6 h-16 bg-[#0b1326]/80 backdrop-blur-xl border-b border-white/5">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#4e74ff] to-[#2e5bff] flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-blue-500/20">
@@ -116,13 +109,11 @@ export default function DashboardManager() {
       </header>
 
       <main className="pt-24 px-6 space-y-8 max-w-lg mx-auto">
-        {/* Page Title */}
         <section>
           <h1 className="text-2xl font-bold text-white mb-1">Sales Dashboard</h1>
           <p className="text-slate-400 text-sm">Real-time performance metrics</p>
         </section>
 
-        {/* Summary Cards */}
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-[#131b2e] p-5 rounded-3xl border border-white/5 shadow-sm">
             <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-3">Total Units</p>
@@ -138,7 +129,6 @@ export default function DashboardManager() {
           </div>
         </div>
 
-        {/* Revenue Chart Section */}
         <div className="bg-[#131b2e] p-6 rounded-[2.5rem] border border-white/5">
           <div className="flex justify-between items-start mb-6">
             <div>
@@ -189,7 +179,6 @@ export default function DashboardManager() {
           </div>
         </div>
 
-        {/* Ranking List */}
         <section className="space-y-4">
           <div className="flex justify-between items-center px-1">
             <h3 className="text-white font-bold text-xl">Elite Performers</h3>
@@ -230,7 +219,6 @@ export default function DashboardManager() {
           </div>
         </section>
 
-        {/* Action Button */}
         <button 
           onClick={exportToExcel}
           className="w-full py-4 bg-[#131b2e] border border-white/10 text-white rounded-3xl font-bold text-sm flex items-center justify-center gap-3 active:scale-[0.98] transition-all hover:bg-[#1a243d]"
@@ -239,12 +227,10 @@ export default function DashboardManager() {
         </button>
       </main>
 
-      {/* Floating Action Button */}
       <button className="fixed bottom-28 right-6 w-14 h-14 bg-gradient-to-br from-[#4e74ff] to-[#2e5bff] text-white rounded-2xl flex items-center justify-center shadow-2xl shadow-blue-500/40 active:scale-90 transition-transform z-50">
         <span className="material-icons text-[24px]">plus</span>
       </button>
 
-      {/* Bottom Navigation */}
       <nav className="fixed bottom-0 w-full pb-8 pt-3 bg-[#0b1326]/80 backdrop-blur-2xl border-t border-white/5 flex justify-around items-center px-8 z-50">
         <button className="flex items-center justify-center bg-blue-500 text-white rounded-2xl p-3 shadow-lg shadow-blue-500/30">
           <span className="material-icons text-[22px]">grid_view</span>
@@ -260,7 +246,6 @@ export default function DashboardManager() {
         </button>
       </nav>
 
-      {/* Loading Overlay */}
       {loading && (
         <div className="fixed inset-0 bg-[#0b1326]/60 backdrop-blur-md flex items-center justify-center z-[100]">
           <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
