@@ -2,117 +2,245 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import DatePicker from 'react-datepicker'
-import 'react-datepicker/dist/react-datepicker.css'
+import { Html5Qrcode } from 'html5-qrcode'
 
-export default function Dashboard() {
-  const [data, setData] = useState<any[]>([])
-  const [startDate, setStartDate] = useState<Date | null>(null)
-  const [endDate, setEndDate] = useState<Date | null>(null)
+export default function InputPage() {
+  const [stores, setStores] = useState<any[]>([])
+  const [filteredStores, setFilteredStores] = useState<any[]>([])
+  const [pics, setPics] = useState<string[]>([])
+  const [products, setProducts] = useState<any[]>([])
 
-  const picLogin =
-    typeof window !== 'undefined' ? localStorage.getItem('pic') : null
+  const [selectedPic, setSelectedPic] = useState('')
+  const [storeId, setStoreId] = useState('')
+  const [productId, setProductId] = useState('')
+  const [qty, setQty] = useState(1)
+  const [imei, setImei] = useState('')
+
+  const [scanning, setScanning] = useState(false)
 
   useEffect(() => {
-    if (!picLogin) {
-      window.location.href = '/login'
-    } else {
-      fetchData()
-    }
+    fetchStores()
+    fetchProducts()
   }, [])
 
-  const fetchData = async () => {
-    let query = supabase
-      .from('sales_reports')
-      .select(`
-        qty,
-        created_at,
-        stores ("NAMA TOKO", PIC),
-        products (name, price)
-      `)
+  // ================= STORES =================
+  const fetchStores = async () => {
+    const { data, error } = await supabase.from('stores').select('*')
 
-    if (startDate && endDate) {
-      query = query
-        .gte('created_at', startDate.toISOString())
-        .lte('created_at', endDate.toISOString())
-    }
+    console.log('🔥 STORES:', data)
+    console.log('❌ ERROR:', error)
 
-    const { data } = await query
-    setData(data || [])
+    setStores(data || [])
+
+    // 🔥 HANDLE SEMUA KEMUNGKINAN FIELD PIC
+    const uniquePics = [
+      ...new Set(
+        (data || [])
+          .map((item) => item.pic || item.PIC || item.Pic)
+          .filter(Boolean)
+      ),
+    ]
+
+    console.log('🔥 PICS:', uniquePics)
+
+    setPics(uniquePics)
   }
 
-  let totalOmzet = 0
-  let totalUnit = 0
+  // ================= PRODUCTS =================
+  const fetchProducts = async () => {
+    const { data } = await supabase.from('products').select('*')
+    setProducts(data || [])
+  }
 
-  data.forEach((item) => {
-    const harga = item.products?.price || 0
-    totalOmzet += harga * item.qty
-    totalUnit += item.qty
-  })
+  // ================= FILTER TOKO =================
+  useEffect(() => {
+    if (selectedPic) {
+      setFilteredStores(
+        stores.filter(
+          (s) =>
+            s.pic === selectedPic ||
+            s.PIC === selectedPic ||
+            s.Pic === selectedPic
+        )
+      )
+    } else {
+      setFilteredStores([])
+    }
 
-  const card = {
-    background: '#111827',
-    borderRadius: 16,
-    padding: 20,
+    setStoreId('')
+  }, [selectedPic, stores])
+
+  // ================= SCANNER (KAMERA BELAKANG) =================
+  const startScanner = async () => {
+    setScanning(true)
+
+    const html5QrCode = new Html5Qrcode('reader')
+
+    try {
+      const devices = await Html5Qrcode.getCameras()
+
+      if (devices && devices.length) {
+        const backCamera = devices[devices.length - 1].id
+
+        await html5QrCode.start(
+          backCamera,
+          {
+            fps: 10,
+            qrbox: 250,
+          },
+          (decodedText) => {
+            setImei(decodedText)
+            html5QrCode.stop()
+            setScanning(false)
+          },
+          (error) => {
+            console.log(error)
+          }
+        )
+      }
+    } catch (err) {
+      console.error(err)
+      alert('Tidak bisa akses kamera')
+      setScanning(false)
+    }
+  }
+
+  // ================= SUBMIT =================
+  const handleSubmit = async () => {
+    if (!storeId || !productId || !imei) {
+      alert('Lengkapi semua data!')
+      return
+    }
+
+    if (imei.length < 10) {
+      alert('IMEI tidak valid')
+      return
+    }
+
+    // 🔥 ambil user login
+    const { data: userData } = await supabase.auth.getUser()
+    const userId = userData?.user?.id
+
+    if (!userId) {
+      alert('User tidak ditemukan, login ulang!')
+      return
+    }
+
+    const { error } = await supabase.from('sales_reports').insert([
+      {
+        store_id: storeId,
+        product_id: productId,
+        qty: 1,
+        imei: imei,
+        user_id: userId,
+      },
+    ])
+
+    if (error) {
+      console.error(error)
+      alert('IMEI mungkin sudah terpakai!')
+    } else {
+      alert('Berhasil disimpan 🔥')
+      setProductId('')
+      setStoreId('')
+      setImei('')
+      setQty(1)
+    }
   }
 
   return (
-    <div
-      style={{
-        padding: 20,
-        background: '#020617',
-        minHeight: '100vh',
-        color: 'white',
-      }}
-    >
-      <h1>📊 Dashboard</h1>
+    <div style={{ padding: 20 }}>
+      <h1>Input Penjualan</h1>
 
-      {/* SUMMARY */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(2,1fr)',
-          gap: 20,
-        }}
-      >
-        <div style={card}>
-          <h3>Omzet</h3>
-          Rp {totalOmzet.toLocaleString()}
-        </div>
-
-        <div style={card}>
-          <h3>Unit</h3>
-          {totalUnit}
-        </div>
+      {/* PIC */}
+      <div>
+        <label>Pilih PIC:</label><br />
+        <select
+          value={selectedPic}
+          onChange={(e) => setSelectedPic(e.target.value)}
+        >
+          <option value="">-- pilih PIC --</option>
+          {pics.map((pic, i) => (
+            <option key={i} value={pic}>
+              {pic}
+            </option>
+          ))}
+        </select>
       </div>
 
-      {/* DATE PICKER */}
-      <div style={{ marginTop: 20 }}>
-        <DatePicker
-          selected={startDate}
-          onChange={(date: Date | null) => setStartDate(date)}
-          placeholderText="Start Date"
+      <br />
+
+      {/* TOKO */}
+      <div>
+        <label>Pilih Toko:</label><br />
+        <select
+          value={storeId}
+          onChange={(e) => setStoreId(e.target.value)}
+          disabled={!selectedPic}
+        >
+          <option value="">-- pilih toko --</option>
+          {filteredStores.map((store) => (
+            <option key={store.id} value={store.id}>
+              {store['NAMA TOKO'] || store.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <br />
+
+      {/* PRODUK */}
+      <div>
+        <label>Pilih Produk:</label><br />
+        <select
+          value={productId}
+          onChange={(e) => setProductId(e.target.value)}
+        >
+          <option value="">-- pilih produk --</option>
+          {products.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name} - Rp {item.price?.toLocaleString()}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <br />
+
+      {/* IMEI */}
+      <div>
+        <label>IMEI:</label><br />
+        <input
+          placeholder="Ketik atau scan IMEI"
+          value={imei}
+          onChange={(e) => setImei(e.target.value)}
         />
 
-        <DatePicker
-          selected={endDate}
-          onChange={(date: Date | null) => setEndDate(date)}
-          placeholderText="End Date"
-        />
+        <br /><br />
+
+        <button onClick={startScanner}>
+          📷 Scan IMEI
+        </button>
       </div>
 
-      <button onClick={fetchData} style={{ marginTop: 10 }}>
-        Filter
-      </button>
+      <br />
 
-      {/* DATA */}
-      <div style={{ marginTop: 20 }}>
-        {data.map((item, i) => (
-          <div key={i} style={card}>
-            {item.stores?.['NAMA TOKO']} - {item.qty}
-          </div>
-        ))}
+      {/* CAMERA */}
+      {scanning && (
+        <div id="reader" style={{ width: 300 }} />
+      )}
+
+      <br />
+
+      {/* QTY */}
+      <div>
+        <label>Qty:</label><br />
+        <input value={1} disabled />
       </div>
+
+      <br />
+
+      <button onClick={handleSubmit}>Simpan</button>
     </div>
   )
 }

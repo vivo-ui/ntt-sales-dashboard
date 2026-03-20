@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Html5QrcodeScanner } from 'html5-qrcode'
+import { Html5Qrcode } from 'html5-qrcode'
 
 export default function InputPage() {
   const [stores, setStores] = useState<any[]>([])
@@ -25,10 +25,24 @@ export default function InputPage() {
 
   // ================= STORES =================
   const fetchStores = async () => {
-    const { data } = await supabase.from('stores').select('*')
+    const { data, error } = await supabase.from('stores').select('*')
+
+    console.log('🔥 STORES:', data)
+    console.log('❌ ERROR:', error)
+
     setStores(data || [])
 
-    const uniquePics = [...new Set(data?.map((item) => item.PIC))]
+    // 🔥 HANDLE SEMUA KEMUNGKINAN FIELD PIC
+    const uniquePics = [
+      ...new Set(
+        (data || [])
+          .map((item) => item.pic || item.PIC || item.Pic)
+          .filter(Boolean)
+      ),
+    ]
+
+    console.log('🔥 PICS:', uniquePics)
+
     setPics(uniquePics)
   }
 
@@ -41,33 +55,54 @@ export default function InputPage() {
   // ================= FILTER TOKO =================
   useEffect(() => {
     if (selectedPic) {
-      setFilteredStores(stores.filter((s) => s.PIC === selectedPic))
+      setFilteredStores(
+        stores.filter(
+          (s) =>
+            s.pic === selectedPic ||
+            s.PIC === selectedPic ||
+            s.Pic === selectedPic
+        )
+      )
     } else {
       setFilteredStores([])
     }
+
     setStoreId('')
   }, [selectedPic, stores])
 
-  // ================= SCANNER =================
-  const startScanner = () => {
+  // ================= SCANNER (KAMERA BELAKANG) =================
+  const startScanner = async () => {
     setScanning(true)
 
-    const scanner = new Html5QrcodeScanner(
-      'reader',
-      { fps: 10, qrbox: 250 },
-      false
-    )
+    const html5QrCode = new Html5Qrcode('reader')
 
-    scanner.render(
-      (decodedText) => {
-        setImei(decodedText)
-        scanner.clear()
-        setScanning(false)
-      },
-      (error) => {
-        console.log(error)
+    try {
+      const devices = await Html5Qrcode.getCameras()
+
+      if (devices && devices.length) {
+        const backCamera = devices[devices.length - 1].id
+
+        await html5QrCode.start(
+          backCamera,
+          {
+            fps: 10,
+            qrbox: 250,
+          },
+          (decodedText) => {
+            setImei(decodedText)
+            html5QrCode.stop()
+            setScanning(false)
+          },
+          (error) => {
+            console.log(error)
+          }
+        )
       }
-    )
+    } catch (err) {
+      console.error(err)
+      alert('Tidak bisa akses kamera')
+      setScanning(false)
+    }
   }
 
   // ================= SUBMIT =================
@@ -82,12 +117,22 @@ export default function InputPage() {
       return
     }
 
+    // 🔥 ambil user login
+    const { data: userData } = await supabase.auth.getUser()
+    const userId = userData?.user?.id
+
+    if (!userId) {
+      alert('User tidak ditemukan, login ulang!')
+      return
+    }
+
     const { error } = await supabase.from('sales_reports').insert([
       {
         store_id: storeId,
         product_id: productId,
         qty: 1,
         imei: imei,
+        user_id: userId,
       },
     ])
 
@@ -115,8 +160,10 @@ export default function InputPage() {
           onChange={(e) => setSelectedPic(e.target.value)}
         >
           <option value="">-- pilih PIC --</option>
-          {pics.map((pic) => (
-            <option key={pic}>{pic}</option>
+          {pics.map((pic, i) => (
+            <option key={i} value={pic}>
+              {pic}
+            </option>
           ))}
         </select>
       </div>
@@ -134,7 +181,7 @@ export default function InputPage() {
           <option value="">-- pilih toko --</option>
           {filteredStores.map((store) => (
             <option key={store.id} value={store.id}>
-              {store['NAMA TOKO']}
+              {store['NAMA TOKO'] || store.name}
             </option>
           ))}
         </select>
@@ -152,7 +199,7 @@ export default function InputPage() {
           <option value="">-- pilih produk --</option>
           {products.map((item) => (
             <option key={item.id} value={item.id}>
-              {item.name} - Rp {item.price.toLocaleString()}
+              {item.name} - Rp {item.price?.toLocaleString()}
             </option>
           ))}
         </select>
