@@ -2,245 +2,93 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Html5Qrcode } from 'html5-qrcode'
 
-export default function InputPage() {
-  const [stores, setStores] = useState<any[]>([])
-  const [filteredStores, setFilteredStores] = useState<any[]>([])
-  const [pics, setPics] = useState<string[]>([])
-  const [products, setProducts] = useState<any[]>([])
-
-  const [selectedPic, setSelectedPic] = useState('')
-  const [storeId, setStoreId] = useState('')
-  const [productId, setProductId] = useState('')
-  const [qty, setQty] = useState(1)
-  const [imei, setImei] = useState('')
-
-  const [scanning, setScanning] = useState(false)
+export default function DashboardPage() {
+  const [reports, setReports] = useState<any[]>([])
 
   useEffect(() => {
-    fetchStores()
-    fetchProducts()
+    fetchReports()
   }, [])
 
-  // ================= STORES =================
-  const fetchStores = async () => {
-    const { data, error } = await supabase.from('stores').select('*')
-
-    console.log('🔥 STORES:', data)
-    console.log('❌ ERROR:', error)
-
-    setStores(data || [])
-
-    // 🔥 HANDLE SEMUA KEMUNGKINAN FIELD PIC
-    const uniquePics = [
-      ...new Set(
-        (data || [])
-          .map((item) => item.pic || item.PIC || item.Pic)
-          .filter(Boolean)
-      ),
-    ]
-
-    console.log('🔥 PICS:', uniquePics)
-
-    setPics(uniquePics)
-  }
-
-  // ================= PRODUCTS =================
-  const fetchProducts = async () => {
-    const { data } = await supabase.from('products').select('*')
-    setProducts(data || [])
-  }
-
-  // ================= FILTER TOKO =================
-  useEffect(() => {
-    if (selectedPic) {
-      setFilteredStores(
-        stores.filter(
-          (s) =>
-            s.pic === selectedPic ||
-            s.PIC === selectedPic ||
-            s.Pic === selectedPic
-        )
-      )
-    } else {
-      setFilteredStores([])
-    }
-
-    setStoreId('')
-  }, [selectedPic, stores])
-
-  // ================= SCANNER (KAMERA BELAKANG) =================
-  const startScanner = async () => {
-    setScanning(true)
-
-    const html5QrCode = new Html5Qrcode('reader')
-
-    try {
-      const devices = await Html5Qrcode.getCameras()
-
-      if (devices && devices.length) {
-        const backCamera = devices[devices.length - 1].id
-
-        await html5QrCode.start(
-          backCamera,
-          {
-            fps: 10,
-            qrbox: 250,
-          },
-          (decodedText) => {
-            setImei(decodedText)
-            html5QrCode.stop()
-            setScanning(false)
-          },
-          (error) => {
-            console.log(error)
-          }
-        )
-      }
-    } catch (err) {
-      console.error(err)
-      alert('Tidak bisa akses kamera')
-      setScanning(false)
-    }
-  }
-
-  // ================= SUBMIT =================
-  const handleSubmit = async () => {
-    if (!storeId || !productId || !imei) {
-      alert('Lengkapi semua data!')
-      return
-    }
-
-    if (imei.length < 10) {
-      alert('IMEI tidak valid')
-      return
-    }
-
-    // 🔥 ambil user login
+  const fetchReports = async () => {
     const { data: userData } = await supabase.auth.getUser()
     const userId = userData?.user?.id
 
-    if (!userId) {
-      alert('User tidak ditemukan, login ulang!')
-      return
-    }
+    if (!userId) return
 
-    const { error } = await supabase.from('sales_reports').insert([
-      {
-        store_id: storeId,
-        product_id: productId,
-        qty: 1,
-        imei: imei,
-        user_id: userId,
-      },
-    ])
+    const { data, error } = await supabase
+      .from('sales_reports')
+      .select(`
+        id,
+        imei,
+        created_at,
+        stores!sales_reports_store_id_fkey (
+          id,
+          name,
+          pic
+        ),
+        products!sales_reports_product_id_fkey (
+          id,
+          name,
+          price
+        )
+      `)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
 
-    if (error) {
-      console.error(error)
-      alert('IMEI mungkin sudah terpakai!')
-    } else {
-      alert('Berhasil disimpan 🔥')
-      setProductId('')
-      setStoreId('')
-      setImei('')
-      setQty(1)
-    }
+    console.log('DATA:', data)
+    console.log('ERROR:', error)
+
+    if (error) return
+
+    setReports(data || [])
   }
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>Input Penjualan</h1>
+      <h1>Dashboard PIC</h1>
 
-      {/* PIC */}
-      <div>
-        <label>Pilih PIC:</label><br />
-        <select
-          value={selectedPic}
-          onChange={(e) => setSelectedPic(e.target.value)}
-        >
-          <option value="">-- pilih PIC --</option>
-          {pics.map((pic, i) => (
-            <option key={i} value={pic}>
-              {pic}
-            </option>
-          ))}
-        </select>
-      </div>
+      <table border={1} cellPadding={10} style={{ width: '100%' }}>
+        <thead>
+          <tr>
+            <th>Tanggal</th>
+            <th>Toko</th>
+            <th>PIC</th>
+            <th>Produk</th>
+            <th>Harga</th>
+            <th>IMEI</th>
+          </tr>
+        </thead>
+        <tbody>
+          {reports.length === 0 ? (
+            <tr>
+              <td colSpan={6} style={{ textAlign: 'center' }}>
+                Tidak ada data
+              </td>
+            </tr>
+          ) : (
+            reports.map((item) => {
+              const store = item.stores || {}
+              const product = item.products || {}
 
-      <br />
-
-      {/* TOKO */}
-      <div>
-        <label>Pilih Toko:</label><br />
-        <select
-          value={storeId}
-          onChange={(e) => setStoreId(e.target.value)}
-          disabled={!selectedPic}
-        >
-          <option value="">-- pilih toko --</option>
-          {filteredStores.map((store) => (
-            <option key={store.id} value={store.id}>
-              {store['NAMA TOKO'] || store.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <br />
-
-      {/* PRODUK */}
-      <div>
-        <label>Pilih Produk:</label><br />
-        <select
-          value={productId}
-          onChange={(e) => setProductId(e.target.value)}
-        >
-          <option value="">-- pilih produk --</option>
-          {products.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name} - Rp {item.price?.toLocaleString()}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <br />
-
-      {/* IMEI */}
-      <div>
-        <label>IMEI:</label><br />
-        <input
-          placeholder="Ketik atau scan IMEI"
-          value={imei}
-          onChange={(e) => setImei(e.target.value)}
-        />
-
-        <br /><br />
-
-        <button onClick={startScanner}>
-          📷 Scan IMEI
-        </button>
-      </div>
-
-      <br />
-
-      {/* CAMERA */}
-      {scanning && (
-        <div id="reader" style={{ width: 300 }} />
-      )}
-
-      <br />
-
-      {/* QTY */}
-      <div>
-        <label>Qty:</label><br />
-        <input value={1} disabled />
-      </div>
-
-      <br />
-
-      <button onClick={handleSubmit}>Simpan</button>
+              return (
+                <tr key={item.id}>
+                  <td>
+                    {new Date(item.created_at).toLocaleString()}
+                  </td>
+                  <td>{store.name || '-'}</td>
+                  <td>{store.pic || '-'}</td>
+                  <td>{product.name || '-'}</td>
+                  <td>
+                    Rp {product.price?.toLocaleString() || 0}
+                  </td>
+                  <td>{item.imei || '-'}</td>
+                </tr>
+              )
+            })
+          )}
+        </tbody>
+      </table>
     </div>
   )
 }
