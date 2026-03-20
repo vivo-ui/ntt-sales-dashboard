@@ -1,29 +1,35 @@
-'use client'
+import type { Metadata } from "next";
+import { Manrope } from "next/font/google";
+import "./globals.css";
 
-import { usePathname } from 'next/navigation'
-import Sidebar from '../components/Sidebar'
+const manrope = Manrope({ subsets: ["latin"] });
+
+export const metadata: Metadata = {
+  title: "NTT Intelligence - Sales Dashboard",
+  description: "Modern Sales Intelligence Command Center",
+};
 
 export default function RootLayout({
   children,
-}: {
-  children: React.ReactNode
-}) {
-  const pathname = usePathname()
-
-  const hideSidebar = pathname === '/login'
-
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
-    <html>
-      <body style={{ margin: 0 }}>
-        {hideSidebar ? (
-          children
-        ) : (
-          <div style={{ display: 'flex' }}>
-            <Sidebar />
-            <div style={{ flex: 1 }}>{children}</div>
-          </div>
-        )}
+    <html lang="en" className="dark">
+      <head>
+        {/* Memuat Material Icons agar ikon di dashboard muncul */}
+        <link
+          href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined"
+          rel="stylesheet"
+        />
+        <link
+          href="https://fonts.googleapis.com/icon?family=Material+Icons"
+          rel="stylesheet"
+        />
+      </head>
+      <body className={`${manrope.className} bg-[#0b1326] text-[#dae2fd] antialiased`}>
+        {children}
       </body>
     </html>
-  )
+  );
 }
