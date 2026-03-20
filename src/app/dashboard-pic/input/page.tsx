@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { useRouter } from 'next/navigation'
+// Note: You will need to install 'html5-qrcode' via npm: npm install html5-qrcode
+import { Html5QrcodeScanner } from 'html5-qrcode'
 
 export default function InputPage() {
   const [stores, setStores] = useState<any[]>([])
@@ -15,10 +17,17 @@ export default function InputPage() {
   })
   const [loading, setLoading] = useState(false)
   const [userEmail, setUserEmail] = useState('')
+  const [isScanning, setIsScanning] = useState(false)
   const router = useRouter()
+  const scannerRef = useRef<Html5QrcodeScanner | null>(null)
 
   useEffect(() => {
     fetchData()
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current.clear()
+      }
+    }
   }, [])
 
   const fetchData = async () => {
@@ -32,20 +41,38 @@ export default function InputPage() {
     }
     
     setUserEmail(email)
+    const picName = email.split('@')[0].toUpperCase()
 
-    // CRITICAL FIX: Extract prefix and handle case-insensitivity
-    const picPrefix = email.split('@')[0]
-
-    // Fetch stores assigned to this PIC (Case Insensitive Match)
     const { data: storeData } = await supabase
       .from('stores')
       .select('*')
-      .or(`pic.ilike.${picPrefix},pic.eq.${email}`) 
+      .or(`pic.eq.${picName},pic.eq.${email}`) 
     
     const { data: productData } = await supabase.from('products').select('*')
     
     setStores(storeData || [])
     setProducts(productData || [])
+  }
+
+  const startScanner = () => {
+    setIsScanning(true)
+    setTimeout(() => {
+      const scanner = new Html5QrcodeScanner(
+        "reader",
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        /* verbose= */ false
+      );
+      
+      scanner.render((decodedText) => {
+        setFormData(prev => ({ ...prev, imei: decodedText }))
+        scanner.clear()
+        setIsScanning(false)
+      }, (error) => {
+        // Handle scan error if needed
+      });
+      
+      scannerRef.current = scanner
+    }, 100)
   }
 
   const handleSubmit = async (e: any) => {
@@ -105,10 +132,20 @@ export default function InputPage() {
       </header>
 
       <main className="pt-28 px-6 space-y-8 max-w-lg mx-auto">
+        {isScanning && (
+          <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center p-6">
+            <div id="reader" className="w-full max-w-sm rounded-3xl overflow-hidden border-2 border-[#2e5bff]"></div>
+            <button 
+              onClick={() => { scannerRef.current?.clear(); setIsScanning(false); }}
+              className="mt-8 px-8 py-3 bg-red-500/20 text-red-500 rounded-full font-bold uppercase tracking-widest border border-red-500/30"
+            >
+              Cancel Scan
+            </button>
+          </div>
+        )}
+
         <div className="bg-[#131b2e]/60 p-8 rounded-[2.5rem] border border-white/5 shadow-2xl space-y-8">
-          
           <div className="space-y-6">
-            {/* Store Dropdown */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-[#dae2fd]/40 ml-1">Pilih Toko Saya</label>
               <div className="relative">
@@ -119,7 +156,7 @@ export default function InputPage() {
                 >
                   <option value="">-- Pilih Toko Anda --</option>
                   {stores.length === 0 ? (
-                    <option disabled>Tidak ada toko assigned (PIC: {userEmail.split('@')[0].toUpperCase()})</option>
+                    <option disabled>Tidak ada toko (PIC: {userEmail.split('@')[0].toUpperCase()})</option>
                   ) : (
                     stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)
                   )}
@@ -128,7 +165,6 @@ export default function InputPage() {
               </div>
             </div>
 
-            {/* Product Dropdown */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-[#dae2fd]/40 ml-1">Pilih Produk</label>
               <div className="relative">
@@ -144,7 +180,6 @@ export default function InputPage() {
               </div>
             </div>
 
-            {/* IMEI Scan Field */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-[#dae2fd]/40 ml-1">Scan IMEI</label>
               <div className="relative">
@@ -157,15 +192,14 @@ export default function InputPage() {
                 />
                 <button 
                   type="button"
+                  onClick={startScanner}
                   className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 bg-[#2e5bff]/10 px-3 py-1.5 rounded-lg border border-[#2e5bff]/20 active:scale-90 transition-transform"
-                  onClick={() => alert('Camera module starting...')}
                 >
                   <span className="material-icons text-sm text-[#2e5bff]">photo_camera</span>
                 </button>
               </div>
             </div>
 
-            {/* Quantity Selector */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-[#dae2fd]/40 ml-1">Jumlah (Qty)</label>
               <div className="flex items-center justify-between bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4">
@@ -196,7 +230,6 @@ export default function InputPage() {
           </button>
         </div>
 
-        {/* Bottom Navigation */}
         <nav className="fixed bottom-0 w-full h-24 bg-[#131b2e]/80 backdrop-blur-2xl border-t border-white/5 flex justify-around items-center px-6 pb-6 z-50">
           <a href="/dashboard-pic" className="flex flex-col items-center justify-center text-[#dae2fd]/40 hover:text-[#dae2fd] transition-colors">
             <span className="material-icons text-xl mb-0.5">grid_view</span>
