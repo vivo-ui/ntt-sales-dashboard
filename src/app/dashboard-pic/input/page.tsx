@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { useRouter } from 'next/navigation'
 // Note: Ensure 'html5-qrcode' is installed: npm install html5-qrcode
-import { Html5QrcodeScanner } from 'html5-qrcode'
+import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode'
 
 export default function InputPage() {
   const [stores, setStores] = useState<any[]>([])
@@ -20,10 +20,10 @@ export default function InputPage() {
   const [isScanning, setIsScanning] = useState(false)
   const router = useRouter()
   const scannerRef = useRef<Html5QrcodeScanner | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetchData()
-    // Cleanup scanner on unmount
     return () => {
       if (scannerRef.current) {
         try {
@@ -46,11 +46,8 @@ export default function InputPage() {
     }
     
     setUserEmail(email)
-    
-    // Prefix extraction for filtering (e.g. 'egi', 'jo', etc.)
     const picPrefix = email.split('@')[0].toLowerCase()
 
-    // Query stores assigned to this PIC (Case-Insensitive Match)
     const { data: storeData } = await supabase
       .from('stores')
       .select('*')
@@ -64,13 +61,12 @@ export default function InputPage() {
 
   const startScanner = () => {
     setIsScanning(true)
-    // Delay to ensure the container element is rendered
     setTimeout(() => {
       const scanner = new Html5QrcodeScanner(
         "reader",
         { 
-          fps: 10, 
-          qrbox: { width: 250, height: 250 },
+          fps: 15, 
+          qrbox: { width: 300, height: 120 }, // Optimized for IMEI horizontal barcode
           aspectRatio: 1.0
         },
         /* verbose= */ false
@@ -81,9 +77,7 @@ export default function InputPage() {
         scanner.clear().then(() => {
           setIsScanning(false)
         }).catch(err => console.error(err))
-      }, (error) => {
-        // Scan failures are normal during scanning
-      });
+      }, (error) => {});
       
       scannerRef.current = scanner
     }, 100)
@@ -96,6 +90,20 @@ export default function InputPage() {
       }).catch(err => console.error(err))
     } else {
       setIsScanning(false)
+    }
+  }
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const html5QrCode = new Html5Qrcode("reader-hidden");
+    try {
+      const decodedText = await html5QrCode.scanFile(file, true);
+      setFormData(prev => ({ ...prev, imei: decodedText }));
+      alert('IMEI Detected: ' + decodedText);
+    } catch (err) {
+      alert('Could not detect barcode from image. Please try another photo or enter manually.');
     }
   }
 
@@ -142,7 +150,6 @@ export default function InputPage() {
 
   return (
     <div className="min-h-screen bg-[#0b1326] font-manrope text-[#dae2fd] pb-32">
-      {/* Header */}
       <header className="fixed top-0 w-full z-50 flex justify-between items-center px-6 h-20 bg-[#0b1326]/70 backdrop-blur-xl border-b border-white/5">
         <div className="flex items-center gap-4">
           <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-[#2e5bff] border border-white/10 shadow-lg">
@@ -157,18 +164,36 @@ export default function InputPage() {
       </header>
 
       <main className="pt-28 px-6 space-y-8 max-w-lg mx-auto">
+        {/* Hidden File Input & Scanner for Image Upload */}
+        <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
+        <div id="reader-hidden" className="hidden"></div>
+
         {/* Scanner Overlay */}
         {isScanning && (
           <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-6">
             <div className="w-full max-w-sm space-y-8 text-center">
               <div className="space-y-2">
-                <h3 className="text-2xl font-black text-white">Scanning IMEI</h3>
-                <p className="text-sm text-[#dae2fd]/60">Place the barcode inside the square</p>
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#2e5bff]/20 border border-[#2e5bff]/30 rounded-full mb-2">
+                   <span className="w-2 h-2 bg-[#2e5bff] rounded-full animate-pulse"></span>
+                   <span className="text-[10px] font-black text-[#2e5bff] uppercase tracking-widest">Scanner Active</span>
+                </div>
+                <h3 className="text-2xl font-black text-white uppercase">Scan IMEI 1 Only</h3>
+                <p className="text-sm text-[#dae2fd]/60">Arahkan kamera pada barcode IMEI pertama</p>
               </div>
-              <div id="reader" className="w-full aspect-square rounded-[2rem] overflow-hidden border-2 border-[#2e5bff] shadow-[0_0_50px_rgba(46,91,255,0.3)]"></div>
+              
+              <div className="relative">
+                <div id="reader" className="w-full aspect-square rounded-[2.5rem] overflow-hidden border-2 border-[#2e5bff]/30 shadow-[0_0_50px_rgba(46,91,255,0.2)]"></div>
+                <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center p-12">
+                   <div className="w-full h-20 border-2 border-[#4edea3] rounded-2xl relative shadow-[0_0_20px_rgba(78,222,163,0.3)]">
+                      <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-[#4edea3] text-[#0b1326] text-[10px] font-black px-3 py-0.5 rounded-full uppercase tracking-tighter">Target IMEI 1</div>
+                      <div className="absolute inset-0 bg-[#4edea3]/5 animate-pulse"></div>
+                   </div>
+                </div>
+              </div>
+
               <button 
                 onClick={stopScanner}
-                className="w-full py-4 bg-white/5 border border-white/10 text-white rounded-2xl font-bold uppercase tracking-widest active:scale-95 transition-all"
+                className="w-full py-5 bg-white/5 border border-white/10 text-white rounded-2xl font-black uppercase tracking-[0.2em] active:scale-95 transition-all text-xs"
               >
                 Cancel Scan
               </button>
@@ -181,10 +206,9 @@ export default function InputPage() {
           <div className="absolute top-0 right-0 w-32 h-32 bg-[#2e5bff]/5 blur-[60px] rounded-full -mr-10 -mt-10"></div>
           
           <div className="space-y-6">
-            {/* Store Selection */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-[#dae2fd]/40 ml-1">Pilih Toko Saya</label>
-              <div className="relative">
+              <div className="relative group">
                 <select 
                   value={formData.storeId}
                   onChange={(e) => setFormData({...formData, storeId: e.target.value})}
@@ -197,14 +221,13 @@ export default function InputPage() {
                     stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)
                   )}
                 </select>
-                <span className="material-icons absolute right-5 top-1/2 -translate-y-1/2 text-[#dae2fd]/20 pointer-events-none">storefront</span>
+                <span className="material-icons absolute right-5 top-1/2 -translate-y-1/2 text-[#dae2fd]/20 pointer-events-none group-hover:text-[#2e5bff]">storefront</span>
               </div>
             </div>
 
-            {/* Product Selection */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-[#dae2fd]/40 ml-1">Pilih Produk</label>
-              <div className="relative">
+              <div className="relative group">
                 <select 
                   value={formData.productId}
                   onChange={(e) => setFormData({...formData, productId: e.target.value})}
@@ -213,17 +236,21 @@ export default function InputPage() {
                   <option value="">-- Pilih Produk --</option>
                   {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
-                <span className="material-icons absolute right-5 top-1/2 -translate-y-1/2 text-[#dae2fd]/20 pointer-events-none">inventory_2</span>
+                <span className="material-icons absolute right-5 top-1/2 -translate-y-1/2 text-[#dae2fd]/20 pointer-events-none group-hover:text-[#2e5bff]">inventory_2</span>
               </div>
             </div>
 
-            {/* IMEI Input & Scanner */}
             <div className="space-y-2">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-[#dae2fd]/40 ml-1">Scan IMEI</label>
-              <div className="relative">
+              <div className="flex justify-between items-center mb-1">
+                 <label className="text-[10px] font-bold uppercase tracking-widest text-[#dae2fd]/40 ml-1">IMEI 1 Identifier</label>
+                 <button onClick={() => fileInputRef.current?.click()} className="text-[10px] font-bold text-[#2e5bff] uppercase tracking-widest flex items-center gap-1 hover:opacity-80 transition-opacity">
+                    <span className="material-icons text-xs">upload_file</span> Upload Photo
+                 </button>
+              </div>
+              <div className="relative group">
                 <input 
                   type="text"
-                  placeholder="Ketik atau scan IMEI"
+                  placeholder="Ketik IMEI 1 atau gunakan kamera"
                   value={formData.imei}
                   onChange={(e) => setFormData({...formData, imei: e.target.value})}
                   className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50 transition-all pr-16"
@@ -233,19 +260,19 @@ export default function InputPage() {
                   onClick={startScanner}
                   className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-[#2e5bff] text-white rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30 active:scale-90 transition-transform"
                 >
-                  <span className="material-icons text-xl">photo_camera</span>
+                  <span className="material-icons text-xl">qr_code_scanner</span>
                 </button>
               </div>
+              <p className="text-[9px] text-[#dae2fd]/30 italic ml-1 mt-1">*Pastikan hanya scan IMEI 1, hindari barcode lainnya.</p>
             </div>
 
-            {/* Qty Selector */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-[#dae2fd]/40 ml-1">Jumlah (Qty)</label>
               <div className="flex items-center justify-between bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4">
                  <button type="button" onClick={() => setFormData({...formData, qty: Math.max(1, formData.qty - 1)})} className="text-[#2e5bff] active:scale-75 transition-transform">
                    <span className="material-icons">remove_circle_outline</span>
                  </button>
-                 <span className="text-xl font-black text-white">{formData.qty}</span>
+                 <span className="text-2xl font-black text-white">{formData.qty}</span>
                  <button type="button" onClick={() => setFormData({...formData, qty: formData.qty + 1})} className="text-[#2e5bff] active:scale-75 transition-transform">
                    <span className="material-icons">add_circle_outline</span>
                  </button>
@@ -256,7 +283,7 @@ export default function InputPage() {
           <button 
             onClick={handleSubmit}
             disabled={loading}
-            className="w-full py-5 bg-gradient-to-br from-[#4e74ff] to-[#2e5bff] text-white rounded-2xl font-black text-lg shadow-xl shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-3"
+            className="w-full py-5 bg-gradient-to-br from-[#4e74ff] to-[#2e5bff] text-white rounded-2xl font-black text-lg shadow-xl shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-3 uppercase tracking-widest"
           >
             {loading ? (
               <>
@@ -269,7 +296,6 @@ export default function InputPage() {
           </button>
         </div>
 
-        {/* Navigation */}
         <nav className="fixed bottom-0 w-full h-24 bg-[#131b2e]/80 backdrop-blur-2xl border-t border-white/5 flex justify-around items-center px-6 pb-6 z-50">
           <a href="/dashboard-pic" className="flex flex-col items-center justify-center text-[#dae2fd]/40 hover:text-[#dae2fd] transition-colors group">
             <span className="material-icons text-xl mb-0.5 group-active:scale-90 transition-transform">grid_view</span>
