@@ -44,7 +44,7 @@ export default function DashboardManager() {
 
       const { data: salesData } = await supabase.from('sales_reports')
         .select(`
-          id, qty, imei, created_at,
+          id, qty, imei, created_at, staff_role, staff_name,
           stores!sales_reports_store_id_fkey (name),
           products!sales_reports_product_id_fkey (name, price),
           profiles:user_id (id, email)
@@ -97,7 +97,7 @@ export default function DashboardManager() {
     omzet: dailyData[i + 1] || 0
   }))
 
-  // Ranking: PIC Performance Based on Real Sales
+  // Ranking: PIC Performance Based on Highest Sales Volume (Revenue)
   const picRanking = pics.map((pic: any) => {
     const userSales = sales.filter(s => s.profiles?.id === pic.id)
     const omzet = userSales.reduce((sum, s) => sum + (Number(s.qty ?? 1) * Number(s.products?.price ?? 0)), 0)
@@ -106,7 +106,7 @@ export default function DashboardManager() {
     const targetUnit = target?.target_unit || 0
     const percent = targetUnit > 0 ? Math.round((units / targetUnit) * 100) : 0
     return { email: pic.email, omzet, percent, units }
-  }).sort((a, b) => b.omzet - a.omzet) // Rank by total revenue
+  }).sort((a, b) => b.omzet - a.omzet) // Rank by highest revenue (Sell-Out)
 
   const format = (n: number) => new Intl.NumberFormat('id-ID').format(n || 0)
 
@@ -115,6 +115,8 @@ export default function DashboardManager() {
       Date: new Date(s.created_at).toLocaleString(),
       PIC: s.profiles?.email || '-',
       Store: s.stores?.name || '-',
+      Staff_Role: s.staff_role || '-',
+      Staff_Name: s.staff_name || '-',
       Product: s.products?.name || '-',
       IMEI: s.imei || '-',
       Qty: s.qty,
@@ -124,12 +126,13 @@ export default function DashboardManager() {
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Sales_Report')
     const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
-    saveAs(new Blob([buf]), `NTT_Sales_${selectedMonth}.xlsx`)
+    saveAs(new Blob([buf]), `NTT_Sales_Final_${selectedMonth}.xlsx`)
   }
 
   const filteredSales = sales.filter(s => 
     s.stores?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.profiles?.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.staff_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.imei?.includes(searchQuery)
   )
 
@@ -141,7 +144,7 @@ export default function DashboardManager() {
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#4e74ff] to-[#2e5bff] border-2 border-white/10 flex items-center justify-center shadow-lg">
              <span className="material-icons text-white">analytics</span>
           </div>
-          <span className="text-xl font-black tracking-tight text-white uppercase">NUBIA NTT 东</span>
+          <span className="text-xl font-black tracking-tight text-white uppercase">DASHBOARD SELL OUT NUBIA NTT(东努)</span>
         </div>
         <div className="flex items-center gap-4">
           <input 
@@ -222,8 +225,13 @@ export default function DashboardManager() {
                             <span className="text-[10px] font-black text-[#4edea3]">Rp {format(r.omzet)}</span>
                           </div>
                           <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
-                             <div className="h-full bg-gradient-to-r from-blue-500 to-[#4edea3] transition-all duration-1000" style={{ width: `${Math.min(r.percent, 100)}%` }}></div>
+                             <div className="h-full bg-gradient-to-r from-blue-500 to-[#4edea3] transition-all duration-1000" style={{ width: `${Math.min((r.omzet / (picRanking[0].omzet || 1)) * 100, 100)}%` }}></div>
                           </div>
+                          {i === 0 && (
+                            <p className="text-[8px] font-bold text-[#4edea3] uppercase mt-1 flex items-center gap-1">
+                              <span className="material-icons text-[10px]">fireplace</span> Top Performer
+                            </p>
+                          )}
                        </div>
                     </div>
                   ))}
@@ -267,24 +275,25 @@ export default function DashboardManager() {
                   <span className="material-icons absolute left-5 top-1/2 -translate-y-1/2 text-[#8c9bbd]">search</span>
                   <input 
                     type="text" 
-                    placeholder="Search store, PIC, or IMEI..." 
+                    placeholder="Search store, staff, or IMEI..." 
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full bg-[#131b2e] border border-white/10 rounded-2xl py-4 pl-14 pr-6 text-sm outline-none focus:border-blue-500 transition-all"
                   />
                </div>
                <button onClick={exportToExcel} className="flex items-center gap-3 px-8 py-4 bg-[#2e5bff] text-white rounded-2xl font-black uppercase text-xs shadow-xl shadow-blue-500/20 active:scale-95 transition-all">
-                  <span className="material-icons text-sm">download</span> Export to Excel
+                  <span className="material-icons text-sm">download</span> Export Final Report
                </button>
             </div>
 
             <div className="bg-[#131b2e] rounded-[2.5rem] border border-white/5 overflow-hidden overflow-x-auto">
-               <table className="w-full text-left min-w-[800px]">
+               <table className="w-full text-left min-w-[1000px]">
                   <thead>
                      <tr className="bg-white/5 text-[#8c9bbd] text-[10px] font-black uppercase tracking-widest">
                         <th className="px-8 py-6">Date</th>
                         <th className="px-8 py-6">Store</th>
                         <th className="px-8 py-6">PIC</th>
+                        <th className="px-8 py-6">Staff (Promotor/FL)</th>
                         <th className="px-8 py-6">Product</th>
                         <th className="px-8 py-6">IMEI</th>
                         <th className="px-8 py-6">Revenue</th>
@@ -295,9 +304,13 @@ export default function DashboardManager() {
                         <tr key={s.id} className="hover:bg-white/5 transition-colors group">
                            <td className="px-8 py-6 text-xs text-[#8c9bbd] font-medium">{new Date(s.created_at).toLocaleDateString()}</td>
                            <td className="px-8 py-6 font-bold text-white text-sm">{s.stores?.name}</td>
-                           <td className="px-8 py-6 text-xs font-black text-blue-400">{s.profiles?.email.split('@')[0]}</td>
+                           <td className="px-8 py-6 text-xs font-black text-blue-400">{s.profiles?.email.split('@')[0].toUpperCase()}</td>
+                           <td className="px-8 py-6">
+                              <p className="text-white text-sm font-bold">{s.staff_name || '-'}</p>
+                              <p className="text-[10px] font-bold text-[#8c9bbd] uppercase">{s.staff_role || 'Staff'}</p>
+                           </td>
                            <td className="px-8 py-6 text-sm text-white">{s.products?.name}</td>
-                           <td className="px-8 py-6 font-mono text-[10px] text-[#8c9bbd]">{s.imei}</td>
+                           <td className="px-8 py-6 font-mono text-[11px] text-[#2e5bff] font-black tracking-tighter">{s.imei}</td>
                            <td className="px-8 py-6 font-black text-emerald-400 text-sm">Rp {format(s.qty * s.products?.price)}</td>
                         </tr>
                      ))}
@@ -332,7 +345,7 @@ export default function DashboardManager() {
                 </div>
              </div>
              <div className="bg-[#131b2e] p-8 rounded-[2.5rem] border border-white/5 shadow-2xl">
-                <h3 className="text-white font-black text-xl mb-8">Full Team Performance</h3>
+                <h3 className="text-white font-black text-xl mb-8">Full Team Performance (Sell-Out Ranking)</h3>
                 <div className="space-y-4 max-h-[400px] overflow-y-auto pr-4 custom-scrollbar">
                    {picRanking.map((r, i) => (
                       <div key={i} className="flex justify-between items-center p-4 rounded-2xl bg-white/5 border border-white/5">
