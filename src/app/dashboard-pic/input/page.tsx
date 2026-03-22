@@ -13,7 +13,9 @@ export default function InputPage() {
     storeId: '',
     productId: '',
     imei: '',
-    qty: 1
+    qty: 1,
+    staffRole: '',
+    staffName: ''
   })
   const [loading, setLoading] = useState(false)
   const [userEmail, setUserEmail] = useState('')
@@ -48,6 +50,7 @@ export default function InputPage() {
     setUserEmail(email)
     const picPrefix = email.split('@')[0].toLowerCase()
 
+    // Query stores assigned to this PIC (Case-Insensitive Match)
     const { data: storeData } = await supabase
       .from('stores')
       .select('*')
@@ -120,7 +123,7 @@ export default function InputPage() {
       return
     }
 
-    if (!formData.storeId || !formData.productId || !formData.imei) {
+    if (!formData.storeId || !formData.productId || !formData.imei || !formData.staffRole || !formData.staffName) {
       alert('Semua field wajib diisi!')
       setLoading(false)
       return
@@ -131,12 +134,14 @@ export default function InputPage() {
       store_id: formData.storeId,
       product_id: formData.productId,
       imei: formData.imei,
-      qty: formData.qty
+      qty: formData.qty,
+      staff_role: formData.staffRole,
+      staff_name: formData.staffName
     })
 
     if (!error) {
       alert('Transaksi berhasil disimpan!')
-      setFormData({ ...formData, imei: '', qty: 1 })
+      setFormData({ ...formData, imei: '', qty: 1, staffName: '' })
     } else {
       alert('Gagal: ' + error.message)
     }
@@ -155,7 +160,7 @@ export default function InputPage() {
           <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-[#2e5bff] border border-white/10 shadow-lg">
              <span className="material-icons">edit_note</span>
           </div>
-          <span className="text-xl font-black tracking-tight text-white">Input Penjualan</span>
+          <span className="text-xl font-black tracking-tight text-white uppercase">Input Penjualan</span>
         </div>
         <div className="text-right">
           <p className="text-[8px] font-bold text-[#dae2fd]/40 uppercase tracking-widest">Operator</p>
@@ -164,11 +169,9 @@ export default function InputPage() {
       </header>
 
       <main className="pt-28 px-6 space-y-8 max-w-lg mx-auto">
-        {/* Hidden File Input & Scanner for Image Upload */}
         <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
         <div id="reader-hidden" className="hidden"></div>
 
-        {/* Scanner Overlay */}
         {isScanning && (
           <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-6">
             <div className="w-full max-w-sm space-y-8 text-center">
@@ -201,11 +204,11 @@ export default function InputPage() {
           </div>
         )}
 
-        {/* Input Form */}
         <div className="bg-[#131b2e]/60 p-8 rounded-[2.5rem] border border-white/5 shadow-2xl space-y-8 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-[#2e5bff]/5 blur-[60px] rounded-full -mr-10 -mt-10"></div>
           
           <div className="space-y-6">
+            {/* Store Selection */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-[#dae2fd]/40 ml-1">Pilih Toko Saya</label>
               <div className="relative group">
@@ -225,6 +228,40 @@ export default function InputPage() {
               </div>
             </div>
 
+            {/* Staff Role Selection */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-[#dae2fd]/40 ml-1">Peran Staff</label>
+              <div className="relative group">
+                <select 
+                  value={formData.staffRole}
+                  onChange={(e) => setFormData({...formData, staffRole: e.target.value})}
+                  className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50 appearance-none transition-all"
+                >
+                  <option value="">-- Pilih Peran --</option>
+                  <option value="Promotor vivo">Promotor vivo</option>
+                  <option value="Front Liner (FL) toko">Front Liner (FL) toko</option>
+                </select>
+                <span className="material-icons absolute right-5 top-1/2 -translate-y-1/2 text-[#dae2fd]/20 pointer-events-none group-hover:text-[#2e5bff]">badge</span>
+              </div>
+            </div>
+
+            {/* Staff Name Input */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-[#dae2fd]/40 ml-1">Nama Lengkap</label>
+              <div className="relative group">
+                <input 
+                  type="text"
+                  placeholder="Nama lengkap sesuai KTP"
+                  value={formData.staffName}
+                  onChange={(e) => setFormData({...formData, staffName: e.target.value})}
+                  className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50 transition-all"
+                />
+                <span className="material-icons absolute right-5 top-1/2 -translate-y-1/2 text-[#dae2fd]/20 pointer-events-none group-hover:text-[#2e5bff]">person</span>
+              </div>
+              <p className="text-[9px] text-[#dae2fd]/30 italic ml-1 mt-1">*Pastikan nama lengkap sesuai KTP.</p>
+            </div>
+
+            {/* Product Selection */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-[#dae2fd]/40 ml-1">Pilih Produk</label>
               <div className="relative group">
@@ -240,6 +277,7 @@ export default function InputPage() {
               </div>
             </div>
 
+            {/* IMEI 1 Input & Scanner */}
             <div className="space-y-2">
               <div className="flex justify-between items-center mb-1">
                  <label className="text-[10px] font-bold uppercase tracking-widest text-[#dae2fd]/40 ml-1">IMEI 1 Identifier</label>
@@ -266,6 +304,7 @@ export default function InputPage() {
               <p className="text-[9px] text-[#dae2fd]/30 italic ml-1 mt-1">*Pastikan hanya scan IMEI 1, hindari barcode lainnya.</p>
             </div>
 
+            {/* Qty Selector */}
             <div className="space-y-2">
               <label className="text-[10px] font-bold uppercase tracking-widest text-[#dae2fd]/40 ml-1">Jumlah (Qty)</label>
               <div className="flex items-center justify-between bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4">
