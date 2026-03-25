@@ -5,8 +5,8 @@ import "./globals.css";
 const manrope = Manrope({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "NTT Intelligence - Sales Dashboard",
-  description: "Modern Sales Intelligence Command Center",
+  title: "NUBIA NTT - Dashboard Sell Out",
+  description: "Dashboard Penjualan Area Nusa Tenggara Timur",
 };
 
 export default function RootLayout({
