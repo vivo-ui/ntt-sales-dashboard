@@ -23,13 +23,17 @@ export default function DashboardManager() {
   const [targets, setTargets] = useState<any[]>([])
   const [pics, setPics] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().substring(0, 7))
+  
+  // Logic: Use specific start and end dates for day-level precision
+  const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0])
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0])
+  
   const [activeTab, setActiveTab] = useState('dashboard') // 'dashboard' | 'reports' | 'analytics'
   const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     fetchAll()
-  }, [selectedMonth])
+  }, [startDate, endDate])
 
   const fetchAll = async () => {
     setLoading(true)
@@ -37,10 +41,9 @@ export default function DashboardManager() {
       // 1. Fetch PIC Profiles
       const { data: picData } = await supabase.from('profiles').select('id, email, role').eq('role', 'pic')
       
-      // 2. Fetch Sales within the selected month range
-      const startOfMonth = `${selectedMonth}-01T00:00:00Z`
-      const lastDay = new Date(Number(selectedMonth.split('-')[0]), Number(selectedMonth.split('-')[1]), 0).getDate()
-      const endOfMonth = `${selectedMonth}-${lastDay}T23:59:59Z`
+      // 2. Fetch Sales within the selected DATE range
+      const startRange = `${startDate}T00:00:00Z`
+      const endRange = `${endDate}T23:59:59Z`
 
       const { data: salesData } = await supabase.from('sales_reports')
         .select(`
@@ -49,8 +52,8 @@ export default function DashboardManager() {
           products!sales_reports_product_id_fkey (name, price),
           profiles:user_id (id, email)
         `)
-        .gte('created_at', startOfMonth)
-        .lte('created_at', endOfMonth)
+        .gte('created_at', startRange)
+        .lte('created_at', endRange)
 
       // 3. Fetch Targets
       const { data: targetData } = await supabase.from('targets').select('*')
@@ -65,12 +68,11 @@ export default function DashboardManager() {
     }
   }
 
-  // --- Data Processing Logic (100% Sell-Out Based) ---
+  // --- Data Processing Logic ---
 
   const totalUnit = sales.reduce((sum, s) => sum + Number(s.qty ?? 1), 0)
   const totalOmzet = sales.reduce((sum, s) => sum + (Number(s.qty ?? 1) * Number(s.products?.price ?? 0)), 0)
 
-  // Chart Data: Revenue per Store
   const storeSales: { [key: string]: number } = {}
   sales.forEach(s => {
     const storeName = s.stores?.name || 'Unknown'
@@ -83,21 +85,30 @@ export default function DashboardManager() {
     omzet: storeSales[store]
   })).sort((a, b) => b.omzet - a.omzet)
 
-  // Chart Data: Daily Sales Trend
   const dailyData: { [key: string]: number } = {}
   sales.forEach(s => {
-    const day = new Date(s.created_at).getDate()
+    const dateStr = new Date(s.created_at).toISOString().split('T')[0]
     const revenue = Number(s.qty ?? 1) * Number(s.products?.price ?? 0)
-    dailyData[day] = (dailyData[day] || 0) + revenue
+    dailyData[dateStr] = (dailyData[dateStr] || 0) + revenue
   })
 
-  const lastDayOfMonth = new Date(Number(selectedMonth.split('-')[0]), Number(selectedMonth.split('-')[1]), 0).getDate()
-  const trendChartData = Array.from({ length: lastDayOfMonth }, (_, i) => ({
-    day: `Day ${i + 1}`,
-    omzet: dailyData[i + 1] || 0
+  const getDatesInRange = (start: string, end: string) => {
+    const date = new Date(start)
+    const dates = []
+    while (date <= new Date(end)) {
+      dates.push(new Date(date).toISOString().split('T')[0])
+      date.setDate(date.getDate() + 1)
+    }
+    return dates
+  }
+
+  const dateLabels = getDatesInRange(startDate, endDate)
+  const trendChartData = dateLabels.map(d => ({
+    day: d.split('-')[2],
+    fullDate: d,
+    omzet: dailyData[d] || 0
   }))
 
-  // Ranking: PIC Performance Based on Highest Sales Volume (Revenue)
   const picRanking = pics.map((pic: any) => {
     const userSales = sales.filter(s => s.profiles?.id === pic.id)
     const omzet = userSales.reduce((sum, s) => sum + (Number(s.qty ?? 1) * Number(s.products?.price ?? 0)), 0)
@@ -106,7 +117,7 @@ export default function DashboardManager() {
     const targetUnit = target?.target_unit || 0
     const percent = targetUnit > 0 ? Math.round((units / targetUnit) * 100) : 0
     return { email: pic.email, omzet, percent, units }
-  }).sort((a, b) => b.omzet - a.omzet) // Rank by highest revenue (Sell-Out)
+  }).sort((a, b) => b.omzet - a.omzet)
 
   const format = (n: number) => new Intl.NumberFormat('id-ID').format(n || 0)
 
@@ -126,7 +137,7 @@ export default function DashboardManager() {
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Sales_Report')
     const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
-    saveAs(new Blob([buf]), `NTT_Sales_Final_${selectedMonth}.xlsx`)
+    saveAs(new Blob([buf]), `NTT_Sales_Final_${startDate}_to_${endDate}.xlsx`)
   }
 
   const filteredSales = sales.filter(s => 
@@ -138,37 +149,47 @@ export default function DashboardManager() {
 
   return (
     <div className="min-h-screen bg-[#0b1326] font-manrope text-[#dae2fd] pb-32">
-      {/* Top Header */}
-      <header className="fixed top-0 w-full z-50 flex justify-between items-center px-6 h-20 bg-[#0b1326]/70 backdrop-blur-xl border-b border-white/5">
+      {/* Header */}
+      <header className="fixed top-0 w-full z-50 flex justify-between items-center px-6 h-24 bg-[#0b1326]/70 backdrop-blur-xl border-b border-white/5">
         <div className="flex items-center gap-4">
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#4e74ff] to-[#2e5bff] border-2 border-white/10 flex items-center justify-center shadow-lg">
              <span className="material-icons text-white">analytics</span>
           </div>
           <span className="text-xl font-black tracking-tight text-white uppercase">DASHBOARD SELL OUT NUBIA NTT(东努)</span>
         </div>
+        
         <div className="flex items-center gap-4">
-          <input 
-            type="month" 
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="bg-[#131b2e] border border-white/10 text-white text-xs font-bold rounded-xl px-4 py-2 outline-none focus:border-[#2e5bff] transition-all"
-          />
-          <button className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-[#dae2fd]/60 border border-white/10">
-            <span className="material-icons">notifications</span>
-          </button>
+          <div className="flex flex-col gap-1">
+            <span className="text-[8px] font-bold text-[#8c9bbd] uppercase tracking-widest ml-1">Start</span>
+            <input 
+              type="date" 
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="bg-[#131b2e] border border-white/10 text-white text-[10px] font-bold rounded-xl px-4 py-2 outline-none focus:border-[#2e5bff] transition-all"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-[8px] font-bold text-[#8c9bbd] uppercase tracking-widest ml-1">End</span>
+            <input 
+              type="date" 
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="bg-[#131b2e] border border-white/10 text-white text-[10px] font-bold rounded-xl px-4 py-2 outline-none focus:border-[#2e5bff] transition-all"
+            />
+          </div>
         </div>
       </header>
 
-      <main className="pt-28 px-6 space-y-8 max-w-7xl mx-auto">
+      <main className="pt-32 px-6 space-y-8 max-w-7xl mx-auto">
         
         {/* VIEW: DASHBOARD */}
         {activeTab === 'dashboard' && (
           <>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
-                { label: 'Total Units', val: format(totalUnit), sub: '+14.2% vs prev', icon: 'inventory_2', color: 'text-emerald-400' },
-                { label: 'Net Revenue', val: `Rp ${format(totalOmzet)}`, sub: '+8.1% vs prev', icon: 'payments', color: 'text-blue-400' },
-                { label: 'Active Stores', val: '48', sub: 'All operational', icon: 'storefront', color: 'text-emerald-400' }
+                { label: 'Total Units (总销量)', val: format(totalUnit), sub: '+14.2% vs prev', icon: 'inventory_2', color: 'text-emerald-400' },
+                { label: 'Net Value(净额)', val: `Rp ${format(totalOmzet)}`, sub: '+8.1% vs prev', icon: 'payments', color: 'text-blue-400' },
+                { label: 'Active Stores (活跃门店)', val: '48', sub: 'All operational', icon: 'storefront', color: 'text-emerald-400' }
               ].map((m, i) => (
                 <div key={i} className="bg-[#131b2e] p-6 rounded-[2rem] border border-white/5 shadow-xl group">
                   <div className="flex justify-between items-start mb-4">
@@ -176,24 +197,13 @@ export default function DashboardManager() {
                     <span className={`material-icons ${m.color} opacity-40 group-hover:opacity-100 transition-opacity`}>{m.icon}</span>
                   </div>
                   <h2 className="text-4xl font-black text-white mb-2">{m.val}</h2>
-                  <div className={`flex items-center gap-1 text-[10px] font-bold ${m.sub.includes('+') ? 'text-[#4edea3]' : 'text-rose-400'}`}>
-                    <span className="material-icons text-sm">{m.sub.includes('+') ? 'trending_up' : 'trending_down'}</span> {m.sub}
-                  </div>
                 </div>
               ))}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2 bg-[#131b2e] p-8 rounded-[2.5rem] border border-white/5 shadow-2xl">
-                <div className="flex justify-between items-start mb-8">
-                  <div>
-                    <h3 className="text-white font-black text-xl">Daily Sales Trend</h3>
-                    <p className="text-[#8c9bbd] text-xs font-medium">Monthly revenue fluctuations</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="flex items-center gap-1 text-[10px] font-bold text-[#4edea3] uppercase"><span className="w-2 h-2 bg-[#4edea3] rounded-full"></span> Revenue</span>
-                  </div>
-                </div>
+                <h3 className="text-white font-black text-xl mb-8">Daily Sales Trend</h3>
                 <div className="w-full h-[350px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={trendChartData}>
@@ -203,7 +213,7 @@ export default function DashboardManager() {
                           <stop offset="95%" stopColor="#4edea3" stopOpacity={0}/>
                         </linearGradient>
                       </defs>
-                      <XAxis dataKey="day" hide />
+                      <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill: '#8c9bbd', fontSize: 10}} />
                       <Tooltip contentStyle={{ backgroundColor: '#0b1326', border: 'none', borderRadius: '1rem' }} />
                       <Area type="monotone" dataKey="omzet" stroke="#4edea3" strokeWidth={4} fillOpacity={1} fill="url(#colorTrend)" />
                     </AreaChart>
@@ -212,26 +222,18 @@ export default function DashboardManager() {
               </div>
 
               <div className="bg-[#131b2e] p-8 rounded-[2.5rem] border border-white/5 shadow-2xl">
-                <h3 className="text-white font-black text-xl mb-8">Elite Performers</h3>
+                <h3 className="text-white font-black text-xl mb-8">PIC Performers (负责人绩效)</h3>
                 <div className="space-y-6">
                   {picRanking.slice(0, 5).map((r: any, i) => (
                     <div key={i} className="flex items-center gap-4 group">
-                       <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${i === 0 ? 'border-[#4edea3] text-[#4edea3]' : 'border-white/5 text-[#8c9bbd]'}`}>
-                          <span className="material-icons text-xl">{i === 0 ? 'person' : 'person_outline'}</span>
-                       </div>
                        <div className="flex-1">
                           <div className="flex justify-between items-center mb-1">
                             <span className="text-white font-bold text-xs">{r.email.split('@')[0].toUpperCase()}</span>
                             <span className="text-[10px] font-black text-[#4edea3]">Rp {format(r.omzet)}</span>
                           </div>
                           <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
-                             <div className="h-full bg-gradient-to-r from-blue-500 to-[#4edea3] transition-all duration-1000" style={{ width: `${Math.min((r.omzet / (picRanking[0].omzet || 1)) * 100, 100)}%` }}></div>
+                             <div className="h-full bg-gradient-to-r from-blue-500 to-[#4edea3]" style={{ width: `${Math.min((r.omzet / (picRanking[0]?.omzet || 1)) * 100, 100)}%` }}></div>
                           </div>
-                          {i === 0 && (
-                            <p className="text-[8px] font-bold text-[#4edea3] uppercase mt-1 flex items-center gap-1">
-                              <span className="material-icons text-[10px]">fireplace</span> Top Performer
-                            </p>
-                          )}
                        </div>
                     </div>
                   ))}
@@ -239,34 +241,9 @@ export default function DashboardManager() {
                 </div>
               </div>
             </div>
-
-            <div className="bg-[#131b2e] p-8 rounded-[2.5rem] border border-white/5 shadow-2xl">
-              <div className="flex justify-between items-start mb-8">
-                <div>
-                  <h3 className="text-white font-black text-xl">Revenue per Store</h3>
-                  <p className="text-[#8c9bbd] text-xs font-medium">Monthly performance distribution</p>
-                </div>
-              </div>
-              <div className="w-full h-[400px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={storeChartData}>
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#8c9bbd', fontSize: 10}} dy={10} />
-                    <Tooltip 
-                      cursor={{fill: 'rgba(255,255,255,0.03)'}}
-                      contentStyle={{ backgroundColor: '#0b1326', border: 'none', borderRadius: '1rem' }}
-                    />
-                    <Bar dataKey="omzet" radius={[8, 8, 0, 0]}>
-                      {storeChartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={index === 0 ? '#4e74ff' : 'rgba(78, 116, 255, 0.2)'} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
           </>
         )}
-
+        
         {/* VIEW: REPORTS */}
         {activeTab === 'reports' && (
           <div className="space-y-6">
@@ -285,7 +262,6 @@ export default function DashboardManager() {
                   <span className="material-icons text-sm">download</span> Export Final Report
                </button>
             </div>
-
             <div className="bg-[#131b2e] rounded-[2.5rem] border border-white/5 overflow-hidden overflow-x-auto">
                <table className="w-full text-left min-w-[1000px]">
                   <thead>
@@ -293,25 +269,20 @@ export default function DashboardManager() {
                         <th className="px-8 py-6">Date</th>
                         <th className="px-8 py-6">Store</th>
                         <th className="px-8 py-6">PIC</th>
-                        <th className="px-8 py-6">Staff (Promotor/FL)</th>
+                        <th className="px-8 py-6">Staff</th>
                         <th className="px-8 py-6">Product</th>
-                        <th className="px-8 py-6">IMEI</th>
                         <th className="px-8 py-6">Revenue</th>
                      </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
                      {filteredSales.map((s) => (
-                        <tr key={s.id} className="hover:bg-white/5 transition-colors group">
-                           <td className="px-8 py-6 text-xs text-[#8c9bbd] font-medium">{new Date(s.created_at).toLocaleDateString()}</td>
-                           <td className="px-8 py-6 font-bold text-white text-sm">{s.stores?.name}</td>
-                           <td className="px-8 py-6 text-xs font-black text-blue-400">{s.profiles?.email.split('@')[0].toUpperCase()}</td>
-                           <td className="px-8 py-6">
-                              <p className="text-white text-sm font-bold">{s.staff_name || '-'}</p>
-                              <p className="text-[10px] font-bold text-[#8c9bbd] uppercase">{s.staff_role || 'Staff'}</p>
-                           </td>
-                           <td className="px-8 py-6 text-sm text-white">{s.products?.name}</td>
-                           <td className="px-8 py-6 font-mono text-[11px] text-[#2e5bff] font-black tracking-tighter">{s.imei}</td>
-                           <td className="px-8 py-6 font-black text-emerald-400 text-sm">Rp {format(s.qty * s.products?.price)}</td>
+                        <tr key={s.id} className="hover:bg-white/5 transition-colors group text-xs text-white">
+                           <td className="px-8 py-6">{new Date(s.created_at).toLocaleDateString()}</td>
+                           <td className="px-8 py-6 font-bold">{s.stores?.name}</td>
+                           <td className="px-8 py-6 text-blue-400">{s.profiles?.email.split('@')[0].toUpperCase()}</td>
+                           <td className="px-8 py-6">{s.staff_name || '-'}</td>
+                           <td className="px-8 py-6">{s.products?.name}</td>
+                           <td className="px-8 py-6 font-black text-emerald-400">Rp {format(s.qty * s.products?.price)}</td>
                         </tr>
                      ))}
                   </tbody>
@@ -320,11 +291,11 @@ export default function DashboardManager() {
           </div>
         )}
 
-        {/* VIEW: ANALYTICS */}
+        {/* VIEW: ANALYTICS (RESTORED) */}
         {activeTab === 'analytics' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
              <div className="bg-[#131b2e] p-8 rounded-[2.5rem] border border-white/5 shadow-2xl">
-                <h3 className="text-white font-black text-xl mb-8">Revenue Share per Store</h3>
+                <h3 className="text-white font-black text-xl mb-8">Sell Out Share per Store (单店销量)</h3>
                 <div className="w-full h-[400px]">
                    <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
@@ -345,7 +316,7 @@ export default function DashboardManager() {
                 </div>
              </div>
              <div className="bg-[#131b2e] p-8 rounded-[2.5rem] border border-white/5 shadow-2xl">
-                <h3 className="text-white font-black text-xl mb-8">Full Team Performance (Sell-Out Ranking)</h3>
+                <h3 className="text-white font-black text-xl mb-8">Peringkat Kinerja Seluruh PIC (负责人绩效排名)</h3>
                 <div className="space-y-4 max-h-[400px] overflow-y-auto pr-4 custom-scrollbar">
                    {picRanking.map((r, i) => (
                       <div key={i} className="flex justify-between items-center p-4 rounded-2xl bg-white/5 border border-white/5">
@@ -363,7 +334,6 @@ export default function DashboardManager() {
              </div>
           </div>
         )}
-
       </main>
 
       {/* Navigation */}

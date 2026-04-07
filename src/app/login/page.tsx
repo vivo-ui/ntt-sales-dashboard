@@ -64,10 +64,10 @@ export default function Login() {
             <span className="material-icons text-4xl text-[#2e5bff]">shield</span>
           </div>
           <h1 className="text-4xl font-black tracking-tight text-white uppercase">
-            Command Center
+            PUSAT CONTROL
           </h1>
           <p className="text-[#dae2fd]/40 font-bold text-xs uppercase tracking-[0.2em]">
-            Access your intelligence dashboard
+            Akses Penjualan Harian
           </p>
         </div>
 
