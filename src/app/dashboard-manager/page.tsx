@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -187,9 +188,9 @@ export default function DashboardManager() {
           <>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
-                { label: 'Total Units (总销量)', val: format(totalUnit), sub: '+14.2% vs prev', icon: 'inventory_2', color: 'text-emerald-400' },
-                { label: 'Net Value(净额)', val: `Rp ${format(totalOmzet)}`, sub: '+8.1% vs prev', icon: 'payments', color: 'text-blue-400' },
-                { label: 'Active Stores (活跃门店)', val: '48', sub: 'All operational', icon: 'storefront', color: 'text-emerald-400' }
+                { label: 'Total Units (总销量)', val: format(totalUnit), icon: 'inventory_2', color: 'text-emerald-400' },
+                { label: 'Net Value(净额)', val: `Rp ${format(totalOmzet)}`, icon: 'payments', color: 'text-blue-400' },
+                { label: 'Active Stores (活跃门店)', val: '48', icon: 'storefront', color: 'text-emerald-400' }
               ].map((m, i) => (
                 <div key={i} className="bg-[#131b2e] p-6 rounded-[2rem] border border-white/5 shadow-xl group">
                   <div className="flex justify-between items-start mb-4">
@@ -262,6 +263,7 @@ export default function DashboardManager() {
                   <span className="material-icons text-sm">download</span> Export Final Report
                </button>
             </div>
+
             <div className="bg-[#131b2e] rounded-[2.5rem] border border-white/5 overflow-hidden overflow-x-auto">
                <table className="w-full text-left min-w-[1000px]">
                   <thead>
@@ -269,8 +271,10 @@ export default function DashboardManager() {
                         <th className="px-8 py-6">Date</th>
                         <th className="px-8 py-6">Store</th>
                         <th className="px-8 py-6">PIC</th>
-                        <th className="px-8 py-6">Staff</th>
+                        <th className="px-8 py-6">Staff Role</th>
+                        <th className="px-8 py-6">Staff Name</th>
                         <th className="px-8 py-6">Product</th>
+                        <th className="px-8 py-6">IMEI</th>
                         <th className="px-8 py-6">Revenue</th>
                      </tr>
                   </thead>
@@ -280,8 +284,14 @@ export default function DashboardManager() {
                            <td className="px-8 py-6">{new Date(s.created_at).toLocaleDateString()}</td>
                            <td className="px-8 py-6 font-bold">{s.stores?.name}</td>
                            <td className="px-8 py-6 text-blue-400">{s.profiles?.email.split('@')[0].toUpperCase()}</td>
-                           <td className="px-8 py-6">{s.staff_name || '-'}</td>
+                           <td className="px-8 py-6">
+                              <span className={`px-2 py-1 rounded-full text-[9px] font-bold uppercase ${s.staff_role === 'Promotor vivo' ? 'bg-blue-500/20 text-blue-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                                 {s.staff_role || '-'}
+                              </span>
+                           </td>
+                           <td className="px-8 py-6 font-medium">{s.staff_name || '-'}</td>
                            <td className="px-8 py-6">{s.products?.name}</td>
+                           <td className="px-8 py-6 font-mono text-blue-300">{s.imei}</td>
                            <td className="px-8 py-6 font-black text-emerald-400">Rp {format(s.qty * s.products?.price)}</td>
                         </tr>
                      ))}
@@ -291,7 +301,7 @@ export default function DashboardManager() {
           </div>
         )}
 
-        {/* VIEW: ANALYTICS (RESTORED) */}
+        {/* VIEW: ANALYTICS */}
         {activeTab === 'analytics' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
              <div className="bg-[#131b2e] p-8 rounded-[2.5rem] border border-white/5 shadow-2xl">
@@ -334,6 +344,7 @@ export default function DashboardManager() {
              </div>
           </div>
         )}
+
       </main>
 
       {/* Navigation */}
