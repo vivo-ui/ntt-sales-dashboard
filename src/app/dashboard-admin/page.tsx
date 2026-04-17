@@ -23,6 +23,7 @@ export default function AdminOverview() {
   })
   
   const [inventoryAnalysis, setInventoryAnalysis] = useState<any[]>([])
+  const [volumeChartData, setVolumeChartData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -42,18 +43,43 @@ export default function AdminOverview() {
         .select('product_id, qty')
         .gte('created_at', thirtyDaysAgo.toISOString())
 
-      // 3. Fetch Pending Transactions (In-Transit)
-      const { count: transitCount } = await supabase
-        .from('inventory_transactions')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'PENDING')
+      // 3. Fetch Transactions for Volume Chart (Last 7 Days)
+      const sevenDaysAgo = new Date()
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+      const { data: transactions } = await supabase.from('inventory_transactions')
+        .select('type, quantity, created_at, status')
+        .gte('created_at', sevenDaysAgo.toISOString())
 
       // Process Metrics
       const totalVal = products?.reduce((sum, p) => sum + (Number(p.current_stock || 0) * Number(p.price || 0)), 0) || 0
       const lowStockCount = products?.filter(p => (p.current_stock || 0) < (p.min_stock_level || 10)).length || 0
+      
+      const transitCount = transactions?.filter(t => t.status === 'PENDING')
+        .reduce((sum, t) => sum + Number(t.quantity || 0), 0) || 0
+
+      // Storage Capacity Logic (Units vs max 5000 units capacity)
+      const totalUnits = products?.reduce((sum, p) => sum + Number(p.current_stock || 0), 0) || 0
+      const maxCapacity = 5000
+      const occupancyPercent = Math.min(Math.round((totalUnits / maxCapacity) * 100), 100)
+
+      // Volume Chart Data (Last 7 Days)
+      const last7Days = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date()
+        d.setDate(d.getDate() - i)
+        return d.toISOString().split('T')[0]
+      }).reverse()
+
+      const chartData = last7Days.map(date => {
+        const dayTxs = transactions?.filter(t => t.created_at.startsWith(date)) || []
+        return {
+          name: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
+          in: dayTxs.filter(t => t.type === 'STOCK_IN').reduce((s, t) => s + Number(t.quantity), 0),
+          out: dayTxs.filter(t => t.type === 'STOCK_OUT').reduce((s, t) => s + Number(t.quantity), 0)
+        }
+      })
+      setVolumeChartData(chartData)
 
       // Process DOS Analysis
-      // DOS = Current Stock / Average Daily Sales
       const analysis = products?.map(product => {
         const productSales = sales?.filter(s => s.product_id === product.id)
         const totalQtySold = productSales?.reduce((sum, s) => sum + Number(s.qty || 0), 0) || 0
@@ -75,7 +101,6 @@ export default function AdminOverview() {
           status = 'OVERSTOCK'
           recommendation = 'Reduce inbound shipments'
         }
-
         return {
           id: product.id,
           name: product.name,
@@ -91,10 +116,9 @@ export default function AdminOverview() {
         totalValue: totalVal,
         itemsInTransit: transitCount || 0,
         criticalAlerts: lowStockCount,
-        storageOccupancy: 82
+        storageOccupancy: occupancyPercent
       })
       setInventoryAnalysis(analysis)
-
     } catch (error) {
       console.error('Error fetching admin data:', error)
     } finally {
@@ -129,13 +153,11 @@ export default function AdminOverview() {
                  <span className="material-icons text-sm">trending_up</span> +12.4% vs last month
               </div>
            </div>
-
            <div className="bg-[#131b2e] p-8 rounded-[2.5rem] border border-white/5 shadow-2xl">
               <p className="text-[#8c9bbd] text-[10px] font-bold uppercase tracking-widest mb-6">Items In-Transit</p>
               <h2 className="text-4xl font-black text-white mb-2">{metrics.itemsInTransit.toLocaleString()} <span className="text-lg font-medium text-[#8c9bbd]">units</span></h2>
               <p className="text-[#8c9bbd] text-xs font-bold uppercase tracking-tighter italic">48 scheduled for delivery today</p>
            </div>
-
            <div className="bg-gradient-to-br from-[#1a243d] to-[#0b1326] p-8 rounded-[2.5rem] border border-rose-500/20 shadow-2xl relative group">
               <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/10 blur-[60px] rounded-full -mr-10 -mt-10"></div>
               <p className="text-rose-400 text-[10px] font-bold uppercase tracking-widest mb-6">Critical SKU Alerts</p>
@@ -155,7 +177,6 @@ export default function AdminOverview() {
               </div>
               <button onClick={fetchData} className="px-5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Refresh Audit</button>
            </div>
-
            <div className="bg-[#131b2e] rounded-[3rem] border border-white/5 overflow-hidden shadow-2xl">
               <table className="w-full text-left">
                  <thead>
@@ -220,26 +241,25 @@ export default function AdminOverview() {
               <h3 className="text-xl font-black text-white uppercase italic mb-8">Stock Volume Activity</h3>
               <div className="w-full h-[300px]">
                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={[
-                       { name: 'Mon', in: 400, out: 240 },
-                       { name: 'Tue', in: 300, out: 139 },
-                       { name: 'Wed', in: 200, out: 980 },
-                       { name: 'Thu', in: 278, out: 390 },
-                       { name: 'Fri', in: 189, out: 480 },
-                       { name: 'Sat', in: 239, out: 380 },
-                       { name: 'Sun', in: 349, out: 430 },
-                    ]}>
+                    <AreaChart data={volumeChartData}>
                        <defs>
-                          <linearGradient id="colorIn" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#4edea3" stopOpacity={0.3}/><stop offset="95%" stopColor="#4edea3" stopOpacity={0}/></linearGradient>
+                          <linearGradient id="colorIn" x1="0" y1="0" x2="0" y2="1">
+                             <stop offset="5%" stopColor="#4edea3" stopOpacity={0.3}/>
+                             <stop offset="95%" stopColor="#4edea3" stopOpacity={0}/>
+                          </linearGradient>
+                          <linearGradient id="colorOut" x1="0" y1="0" x2="0" y2="1">
+                             <stop offset="5%" stopColor="#2e5bff" stopOpacity={0.3}/>
+                             <stop offset="95%" stopColor="#2e5bff" stopOpacity={0}/>
+                          </linearGradient>
                        </defs>
                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#8c9bbd', fontSize: 12}} />
                        <Tooltip contentStyle={{ backgroundColor: '#0b1326', border: 'none', borderRadius: '1rem' }} />
                        <Area type="monotone" dataKey="in" stroke="#4edea3" strokeWidth={4} fill="url(#colorIn)" />
+                       <Area type="monotone" dataKey="out" stroke="#2e5bff" strokeWidth={4} fill="url(#colorOut)" />
                     </AreaChart>
                  </ResponsiveContainer>
               </div>
            </div>
-
            <div className="bg-[#131b2e] p-10 rounded-[3rem] border border-white/5 shadow-2xl flex flex-col justify-center items-center text-center space-y-6">
               <h3 className="text-xl font-black text-white uppercase italic">Storage Capacity</h3>
               <div className="relative w-48 h-48 flex items-center justify-center">
@@ -253,13 +273,12 @@ export default function AdminOverview() {
                  </div>
               </div>
               <div className="space-y-1">
-                 <p className="text-sm font-bold text-white">12,340 m² Used</p>
-                 <p className="text-xs text-[#8c9bbd]">Expansion recommended for Q4</p>
+                 <p className="text-sm font-bold text-white">Live Capacity Used</p>
+                 <p className="text-xs text-[#8c9bbd]">Based on current warehouse unit count</p>
               </div>
            </div>
         </div>
       </main>
-
       {/* Admin Floating Access */}
       <button className="fixed bottom-10 right-10 w-16 h-16 bg-[#2e5bff] text-white rounded-3xl flex items-center justify-center shadow-2xl shadow-blue-500/40 hover:scale-110 active:scale-95 transition-all z-50 group">
          <span className="material-icons text-3xl group-hover:rotate-90 transition-transform">add</span>
