@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
@@ -47,7 +48,6 @@ export default function StockOutPage() {
       alert('IMEI sudah ada di daftar manifest.')
       return
     }
-
     setLoading(true)
     try {
       const { data, error } = await supabase
@@ -56,7 +56,6 @@ export default function StockOutPage() {
         .eq('imei', cleanImei)
         .eq('status', 'IN_WAREHOUSE')
         .single()
-
       if (data) {
         setSelection(prev => ({
           ...prev,
@@ -81,11 +80,11 @@ export default function StockOutPage() {
   const startScanner = async () => {
     setIsScanning(true)
     setTimeout(async () => {
-      const html5QrCode = new Html5Qrcode("reader");
-      scannerRef.current = html5QrCode;
-      const config = { fps: 20, qrbox: { width: 300, height: 120 } };
-      
       try {
+        const html5QrCode = new Html5Qrcode("reader");
+        scannerRef.current = html5QrCode;
+        const config = { fps: 20, qrbox: { width: 300, height: 120 } };
+        
         await html5QrCode.start(
           { facingMode: "environment" }, 
           config, 
@@ -93,10 +92,10 @@ export default function StockOutPage() {
           () => {}
         );
       } catch (err) {
-        alert("Gagal mengakses kamera.");
+        console.error("Camera error:", err);
         setIsScanning(false);
       }
-    }, 100);
+    }, 200);
   }
 
   const stopScanner = async () => {
@@ -119,12 +118,121 @@ export default function StockOutPage() {
       'IMEI': item.imei,
       'Status': 'Draft Dispatch'
     }))
-
     const ws = XLSX.utils.json_to_sheet(exportRows)
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Shipment_Manifest')
     const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
     saveAs(new Blob([buf]), `StockOut_Manifest_${new Date().getTime()}.xlsx`)
+  }
+
+  const handlePrintInvoice = () => {
+    if (!selection.storeId || selection.items.length === 0) {
+      alert('Pilih toko dan scan barang terlebih dahulu.');
+      return;
+    }
+
+    const selectedStore = stores.find(s => s.id === selection.storeId);
+    const storeName = selectedStore?.name || 'Unknown Store';
+    const storePic = selectedStore?.pic || 'Store Manager'; // FETCH PIC NAME FROM DATABASE
+    const date = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+    const invoiceId = `DIS-${Math.floor(10000 + Math.random() * 90000)}`;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const itemsHtml = selection.items.map((item, index) => `
+      <tr style="border-bottom: 1px solid #eee;">
+        <td style="padding: 10px; text-align: center;">${(index + 1).toString().padStart(2, '0')}</td>
+        <td style="padding: 10px;">${item.productName}</td>
+        <td style="padding: 10px; font-family: monospace;">${item.imei}</td>
+        <td style="padding: 10px; text-align: center;">1</td>
+      </tr>
+    `).join('');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Invoice - ${invoiceId}</title>
+          <style>
+            body { font-family: 'Inter', sans-serif; color: #1a1a1a; margin: 0; padding: 40px; }
+            .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; border-bottom: 2px solid #2e5bff; padding-bottom: 20px; }
+            .logo { font-size: 24px; font-weight: 800; color: #2e5bff; text-transform: uppercase; }
+            .invoice-info { text-align: right; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 40px; }
+            .section-title { font-size: 10px; font-weight: 800; text-transform: uppercase; color: #888; margin-bottom: 8px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
+            th { background: #f8fafc; font-size: 10px; text-transform: uppercase; padding: 12px 10px; text-align: left; border-bottom: 2px solid #eee; }
+            .footer { margin-top: 60px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; text-align: center; }
+            .sig-box { height: 80px; border-bottom: 1px solid #000; margin-bottom: 10px; }
+            @media print { .no-print { display: none; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <div class="logo">Nubia NTT 东</div>
+              <h1 style="margin: 10px 0 0 0; font-size: 20px;">SURAT JALAN / DISPATCH NOTE</h1>
+            </div>
+            <div class="invoice-info">
+              <p style="margin: 0; font-weight: bold;">${invoiceId}</p>
+              <p style="margin: 0; color: #666;">${date}</p>
+            </div>
+          </div>
+
+          <div class="grid">
+            <div>
+              <div class="section-title">Origin / Dari</div>
+              <p style="margin: 0; font-weight: bold;">PT. OUMAN INVESTMENT AND TRADE</p>
+              <p style="margin: 0; font-size: 13px; color: #666;">NUSA TENGGARA TIMUR</p>
+            </div>
+            <div>
+              <div class="section-title">Destination / Tujuan</div>
+              <p style="margin: 0; font-weight: bold;">${storeName}</p>
+              <p style="margin: 0; font-size: 13px; color: #666;">Attn: ${storePic}</p>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 40px;">No</th>
+                <th>Nama Produk</th>
+                <th>IMEI / Serial</th>
+                <th style="width: 60px;">Qty</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+
+          <div style="text-align: right; margin-bottom: 60px;">
+            <p style="margin: 0; font-size: 14px;">Total Units: <span style="font-size: 24px; font-weight: 900; color: #2e5bff; margin-left: 10px;">${selection.items.length}</span></p>
+          </div>
+
+          <div class="footer">
+            <div>
+              <div class="sig-box"></div>
+              <p style="margin: 0; font-size: 12px; font-weight: bold;">Warehouse Admin</p>
+            </div>
+            <div>
+              <div class="sig-box"></div>
+              <p style="margin: 0; font-size: 12px; font-weight: bold;">Courier / Driver</p>
+            </div>
+            <div>
+              <div class="sig-box"></div>
+              <p style="margin: 0; font-size: 12px; font-weight: bold;">Store Receiver (${storePic})</p>
+            </div>
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   }
 
   const processOrder = async () => {
@@ -137,31 +245,25 @@ export default function StockOutPage() {
     setLoading(true)
     try {
       const storeName = stores.find(s => s.id === selection.storeId)?.name
-
       const { data: tx, error: txError } = await supabase.from('inventory_transactions').insert({
         type: 'STOCK_OUT',
         quantity: selection.items.length,
         source_destination: storeName,
         notes: `Dispatch to ${storeName}, Priority: ${selection.priority}`
       }).select().single()
-
       if (txError) throw txError
-
       const itemIds = selection.items.map(i => i.id)
       await supabase.from('inventory_items')
         .update({ status: 'SHIPPED', last_transaction_id: tx.id })
         .in('id', itemIds)
-
       const productCounts = selection.items.reduce((acc: any, item) => {
         acc[item.product_id] = (acc[item.product_id] || 0) + 1
         return acc
       }, {})
-
       for (const pid in productCounts) {
         const { data: prod } = await supabase.from('products').select('current_stock').eq('id', pid).single()
         await supabase.from('products').update({ current_stock: (prod?.current_stock || 0) - productCounts[pid] }).eq('id', pid)
       }
-
       alert(`Berhasil mengirim ${selection.items.length} unit ke ${storeName}!`)
       setSelection({ storeId: '', priority: 'STANDARD', items: [] })
     } catch (error: any) {
@@ -181,18 +283,20 @@ export default function StockOutPage() {
            </div>
            <div className="flex gap-4">
               <button 
+                onClick={handlePrintInvoice}
+                className="px-6 py-3 bg-[#2e5bff]/10 border border-[#2e5bff]/20 text-[#2e5bff] rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-[#2e5bff] hover:text-white transition-all"
+              >
+                 <span className="material-icons text-sm">print</span> Print Invoice
+              </button>
+              <button 
                 onClick={exportManifest}
                 disabled={selection.items.length === 0}
                 className="px-6 py-2 bg-white/5 border border-white/10 text-white rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-white/10 transition-all disabled:opacity-30"
               >
                  <span className="material-icons text-sm">download</span> Export Manifest
               </button>
-              <span className="px-4 py-2 bg-[#2e5bff]/10 border border-[#2e5bff]/20 text-[#2e5bff] rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                 <span className="w-2 h-2 bg-[#2e5bff] rounded-full animate-pulse"></span> Ledger Sync Active
-              </span>
            </div>
         </header>
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
            <div className="lg:col-span-2 space-y-8">
               <section className="bg-[#131b2e]/60 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl space-y-8">
@@ -225,7 +329,6 @@ export default function StockOutPage() {
                     </div>
                  </div>
               </section>
-
               <section className="bg-[#131b2e]/60 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl space-y-8">
                  <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-2xl bg-[#4edea3]/10 flex items-center justify-center text-[#4edea3]">
@@ -233,7 +336,6 @@ export default function StockOutPage() {
                     </div>
                     <h3 className="text-xl font-black text-white uppercase">Guided Fulfillment Scan</h3>
                  </div>
-
                  {isScanning && (
                    <div className="relative mb-8 rounded-[2rem] overflow-hidden border-2 border-[#2e5bff]/30 shadow-2xl bg-black aspect-video">
                       <div id="reader" className="w-full h-full"></div>
@@ -244,7 +346,6 @@ export default function StockOutPage() {
                       </div>
                    </div>
                  )}
-
                  <div className="flex gap-4">
                     <div className="flex-1 space-y-2">
                        <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd] ml-1">Manual IMEI Input</label>
@@ -261,23 +362,21 @@ export default function StockOutPage() {
                        <button 
                          type="button"
                          onClick={isScanning ? stopScanner : startScanner}
-                         className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${isScanning ? 'bg-rose-500/20 text-rose-500 border border-rose-500/30' : 'bg-[#2e5bff]/10 text-[#2e5bff] border border-[#2e5bff]/20 hover:bg-[#2e5bff] hover:text-white'}`}
+                         className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${isScanning ? 'bg-rose-500/20 text-rose-500 border border-rose-500/30' : 'bg-[#2e5bff]/10 text-[#2e5bff] border border-[#2e5bff]/20 hover:bg-[#2e5bff] hover:text-white shadow-lg'}`}
                        >
                          <span className="material-icons">{isScanning ? 'close' : 'photo_camera'}</span>
                        </button>
                     </div>
                  </div>
-
                  <button 
                    type="button"
                    onClick={() => validateAndAddImei(manualImei)}
                    disabled={!manualImei || loading}
-                   className="w-full py-4 bg-[#2e5bff]/10 border border-[#2e5bff]/20 text-[#2e5bff] rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 hover:bg-[#2e5bff] hover:text-white transition-all"
+                   className="w-full py-4 bg-[#2e5bff]/10 border border-[#2e5bff]/20 text-[#2e5bff] rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 hover:bg-[#2e5bff] hover:text-white"
                  >
                    Verify and Queue
                  </button>
               </section>
-
               <section className="space-y-6">
                  <h3 className="text-xl font-bold text-white uppercase tracking-tight ml-2">Outcoming Item List</h3>
                  <div className="space-y-4">
@@ -307,7 +406,6 @@ export default function StockOutPage() {
                  </div>
               </section>
            </div>
-
            <div className="space-y-6">
               <div className="bg-[#131b2e] p-10 rounded-[3rem] border border-white/5 shadow-2xl sticky top-28 space-y-10">
                  <div className="space-y-2 text-center">
@@ -317,7 +415,6 @@ export default function StockOutPage() {
                        <span className="text-7xl font-black text-[#4edea3] tracking-tighter">{selection.items.length.toString().padStart(2, '0')}</span>
                     </div>
                  </div>
-
                  <div className="pt-4 space-y-4">
                     <button 
                       onClick={processOrder}
