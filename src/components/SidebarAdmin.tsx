@@ -1,3 +1,4 @@
+
 'use client'
 
 import Link from 'next/link'
@@ -10,13 +11,13 @@ export default function SidebarAdmin() {
     { name: 'Overview', path: '/dashboard-admin', icon: 'dashboard' },
     { name: 'Barang Masuk', path: '/dashboard-admin/stock-in', icon: 'login' },
     { name: 'Barang Keluar', path: '/dashboard-admin/stock-out', icon: 'logout' },
-    { name: 'Transfer Stok', path: '/dashboard-admin/transfers', icon: 'swap_horiz' }, // NEW MENU ADDED
-    { name: 'Database Stok', path: '/dashboard-admin/ledger', icon: 'menu_book' },
+    { name: 'Transfer Stok', path: '/dashboard-admin/transfers', icon: 'swap_horiz' },
+    { name: 'Ledger Stok', path: '/dashboard-admin/ledger', icon: 'menu_book' },
   ]
 
   return (
     <>
-      {/* DESKTOP SIDEBAR */}
+      {/* DESKTOP SIDEBAR: Hidden on screens smaller than lg (1024px) */}
       <aside className="fixed left-0 top-0 h-screen w-64 bg-[#0b1326] border-r border-white/5 hidden lg:flex flex-col p-6 z-50 transition-all">
         <div className="flex items-center gap-3 mb-10 px-2">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#4e74ff] to-[#2e5bff] flex items-center justify-center shadow-lg shadow-blue-500/20">
@@ -50,7 +51,7 @@ export default function SidebarAdmin() {
         </Link>
       </aside>
 
-      {/* MOBILE BOTTOM NAVIGATION */}
+      {/* MOBILE BOTTOM NAVIGATION: Visible only on small screens */}
       <nav className="fixed bottom-0 left-0 w-full h-20 bg-[#0b1326]/90 backdrop-blur-xl border-t border-white/5 flex lg:hidden justify-around items-center px-4 pb-4 z-50">
         {menus.map((menu) => (
           <Link 
@@ -60,7 +61,7 @@ export default function SidebarAdmin() {
               pathname === menu.path ? 'text-[#2e5bff] scale-110' : 'text-[#8c9bbd]'
             }`}
           >
-            <span className={`material-icons text-2xl ${pathname === menu.path ? 'bg-[#2e5bff]/10 p-3 rounded-2xl shadow-lg' : ''}`}>
+            <span className={`material-icons text-2xl ${pathname === menu.path ? 'bg-[#2e5bff]/10 p-2 rounded-xl shadow-lg' : ''}`}>
               {menu.icon}
             </span>
             <span className="text-[8px] font-black uppercase tracking-tighter mt-1">{menu.name.split(' ')[0]}</span>
