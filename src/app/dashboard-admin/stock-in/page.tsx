@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
@@ -13,7 +12,7 @@ interface BatchItem {
   imeis: { imei: string; warehouseId: string }[]
 }
 
-export default function StockInWithWarehousePage() {
+export default function StockInManualSupplierPage() {
   const [products, setProducts] = useState<any[]>([])
   const [warehouses, setWarehouses] = useState<any[]>([])
   const [activeBatch, setActiveBatch] = useState<BatchItem[]>([])
@@ -43,10 +42,14 @@ export default function StockInWithWarehousePage() {
   }, [])
 
   const fetchInitialData = async () => {
-    const { data: pData } = await supabase.from('products').select('*').order('name')
-    const { data: wData } = await supabase.from('warehouses').select('*').order('name')
-    setProducts(pData || [])
-    setWarehouses(wData || [])
+    try {
+      const { data: pData } = await supabase.from('products').select('*').order('name')
+      const { data: wData } = await supabase.from('warehouses').select('*').order('name')
+      setProducts(pData || [])
+      setWarehouses(wData || [])
+    } catch (err) {
+      console.error('Error fetching initial data:', err)
+    }
   }
 
   const startScanner = () => {
@@ -107,28 +110,37 @@ export default function StockInWithWarehousePage() {
     addImeiToBatch(currentEntry.productId, currentEntry.imei, currentEntry.warehouseId)
   }
 
-  const exportToExcel = () => {
-    if (activeBatch.length === 0) return
+  const handleExportExcel = () => {
+    if (activeBatch.length === 0) {
+      alert('Batch list is empty.')
+      return
+    }
     
-    const exportRows: any[] = []
-    activeBatch.forEach(item => {
-      item.imeis.forEach(entry => {
-        const warehouseName = warehouses.find(w => w.id === entry.warehouseId)?.name || 'Unknown'
-        exportRows.push({
-          'Supplier': originInfo.supplierName || 'Manual Entry',
-          'Tanggal Datang': originInfo.deliveryDate,
-          'Nama Produk': item.productName,
-          'IMEI': entry.imei,
-          'Gudang': warehouseName,
-          'Status': 'Draft Stock-In'
+    try {
+      const exportRows: any[] = []
+      activeBatch.forEach(item => {
+        item.imeis.forEach(entry => {
+          const warehouseName = warehouses.find(w => w.id === entry.warehouseId)?.name || 'Unknown'
+          exportRows.push({
+            'Supplier': originInfo.supplierName || 'Manual Entry',
+            'Tanggal Datang': originInfo.deliveryDate,
+            'Nama Produk': item.productName,
+            'IMEI': entry.imei,
+            'Gudang': warehouseName,
+            'Status': 'Draft Stock-In'
+          })
         })
       })
-    })
-    const ws = XLSX.utils.json_to_sheet(exportRows)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Stock_In_Batch')
-    const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
-    saveAs(new Blob([buf]), `StockIn_Manifest_\${new Date().getTime()}.xlsx`)
+
+      const ws = XLSX.utils.json_to_sheet(exportRows)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Stock_In_Batch')
+      const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+      saveAs(new Blob([buf], { type: 'application/octet-stream' }), `StockIn_Batch_${new Date().getTime()}.xlsx`)
+    } catch (err) {
+      console.error('Export Error:', err)
+      alert('Failed to export Excel.')
+    }
   }
 
   const finalizeStockIn = async () => {
@@ -140,17 +152,12 @@ export default function StockInWithWarehousePage() {
     setLoading(true)
     try {
       for (const item of activeBatch) {
-        // Since different items in the same batch could go to different warehouses, 
-        // we can group them by warehouse if we want individual transactions or just log them.
-        // For simplicity and matching current logic, we log a transaction per product type 
-        // in the batch, but individual inventory items keep their specific warehouse.
-        
         const { data: tx, error: txError } = await supabase.from('inventory_transactions').insert({
           type: 'STOCK_IN',
           product_id: item.productId,
           quantity: item.imeis.length,
           source_destination: originInfo.supplierName,
-          notes: `Batch arrival from: \${originInfo.supplierName} on \${originInfo.deliveryDate}`
+          notes: `Batch arrival from: ${originInfo.supplierName} on ${originInfo.deliveryDate}`
         }).select().single()
 
         if (txError) throw txError
@@ -183,217 +190,148 @@ export default function StockInWithWarehousePage() {
 
   return (
     <div className="min-h-screen bg-[#0b1326] text-[#dae2fd] font-manrope">
-      <main className="pl-64 pt-20 p-8 max-w-7xl mx-auto space-y-10 pb-32">
+      <main className="lg:pl-64 pt-20 p-6 max-w-7xl mx-auto space-y-10 pb-32">
         <header className="flex justify-between items-center">
            <div className="space-y-1">
              <h1 className="text-4xl font-black text-white uppercase italic tracking-tight">Admin Stock-In</h1>
-             <p className="text-[#8c9bbd] text-sm font-medium uppercase tracking-widest">Digital Asset Intake Protocol</p>
+             <p className="text-[#8c9bbd] text-sm font-medium uppercase tracking-widest">Register inbound shipments</p>
            </div>
            <div className="flex gap-4">
               <button 
-                onClick={exportToExcel}
-                disabled={activeBatch.length === 0}
-                className="px-6 py-2 bg-white/5 border border-white/10 text-white rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-white/10 transition-all disabled:opacity-30"
+                onClick={handleExportExcel}
+                className="px-6 py-2 bg-white/5 border border-white/10 text-white rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-white/10 transition-all"
               >
-                 <span className="material-icons text-sm">download</span> Export Batch
+                 <span className="material-icons text-sm">download</span> Export Excel
               </button>
-              <span className="px-4 py-2 bg-[#4edea3]/10 border border-[#4edea3]/20 text-[#4edea3] rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                 <span className="w-2 h-2 bg-[#4edea3] rounded-full animate-pulse"></span> Node Synchronized
-              </span>
            </div>
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
            <div className="lg:col-span-2 space-y-8">
-              <section className="bg-[#131b2e]/60 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl space-y-8">
+              <section className="bg-[#131b2e]/60 p-8 rounded-[2.5rem] border border-white/5 shadow-2xl space-y-8">
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-2">
-                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd] ml-1">Supplier Source</label>
+                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd]">Supplier Source</label>
                        <input 
                          type="text" 
-                         placeholder="Name of Vendor..."
                          value={originInfo.supplierName}
                          onChange={(e) => setOriginInfo({...originInfo, supplierName: e.target.value})}
-                         className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50 transition-all"
+                         className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50"
+                         placeholder="Enter supplier name..."
                        />
                     </div>
                     <div className="space-y-2">
-                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd] ml-1">Arrival Date</label>
+                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd]">Arrival Date</label>
                        <input 
                          type="date"
                          value={originInfo.deliveryDate}
                          onChange={(e) => setOriginInfo({...originInfo, deliveryDate: e.target.value})}
-                         className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50 transition-all"
+                         className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50"
                        />
                     </div>
                  </div>
               </section>
 
-              <section className="bg-[#131b2e]/60 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl space-y-8">
-                 <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-[#2e5bff]/10 flex items-center justify-center text-[#2e5bff]">
-                      <span className="material-icons">qr_code_scanner</span>
-                    </div>
-                    <h3 className="text-xl font-black text-white uppercase">Active Intake Field</h3>
-                 </div>
-
-                 {isScanning && (
-                   <div className="relative mb-8 rounded-[2rem] overflow-hidden border-2 border-[#2e5bff]/30 shadow-2xl">
-                      <div id="reader" className="w-full"></div>
-                      <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                         <div className="w-[300px] h-[120px] border-2 border-[#4edea3] rounded-xl relative shadow-[0_0_50px_rgba(0,0,0,0.5)]">
-                            <div className="absolute top-1/2 left-0 w-full h-[1px] bg-[#4edea3] animate-pulse"></div>
-                         </div>
-                      </div>
-                   </div>
-                 )}
-
-                 <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                       <div className="space-y-2">
-                          <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd] ml-1">Select Product Model</label>
-                          <select 
-                            value={currentEntry.productId}
-                            onChange={(e) => setCurrentEntry({...currentEntry, productId: e.target.value})}
-                            className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50 appearance-none transition-all"
-                          >
-                             <option value="">-- Choose Product --</option>
-                             {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                          </select>
-                       </div>
-                       <div className="space-y-2">
-                          <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd] ml-1">Assign to Warehouse Node</label>
-                          <select 
-                            value={currentEntry.warehouseId}
-                            onChange={(e) => setCurrentEntry({...currentEntry, warehouseId: e.target.value})}
-                            className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50 appearance-none transition-all"
-                          >
-                             <option value="">-- Choose Warehouse --</option>
-                             {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                          </select>
-                       </div>
-                    </div>
-
+              <section className="bg-[#131b2e]/60 p-8 rounded-[2.5rem] border border-white/5 shadow-2xl space-y-8">
+                 <div id="reader" className={`${isScanning ? 'block' : 'hidden'} mb-8 rounded-[2rem] overflow-hidden border-2 border-[#2e5bff]/30`}></div>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd] ml-1">IMEI Entry</label>
-                       <div className="flex gap-4">
-                          <input 
-                            type="text" 
-                            placeholder="Type serial identifier..."
-                            value={currentEntry.imei}
-                            onChange={(e) => setCurrentEntry({...currentEntry, imei: e.target.value})}
-                            onKeyDown={(e) => e.key === 'Enter' && handleManualAdd()}
-                            className="flex-1 bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50 transition-all"
-                          />
-                          <button 
-                            onClick={isScanning ? stopScanner : startScanner}
-                            className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all \${isScanning ? 'bg-rose-500/20 text-rose-500 border border-rose-500/30' : 'bg-[#2e5bff]/10 text-[#2e5bff] border border-[#2e5bff]/20 hover:bg-[#2e5bff] hover:text-white'}`}
-                          >
-                            <span className="material-icons">{isScanning ? 'close' : 'photo_camera'}</span>
-                          </button>
-                       </div>
+                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd]">Product</label>
+                       <select 
+                         value={currentEntry.productId}
+                         onChange={(e) => setCurrentEntry({...currentEntry, productId: e.target.value})}
+                         className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none appearance-none"
+                       >
+                          <option value="">-- Choose Product --</option>
+                          {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                       </select>
+                    </div>
+                    <div className="space-y-2">
+                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd]">Warehouse</label>
+                       <select 
+                         value={currentEntry.warehouseId}
+                         onChange={(e) => setCurrentEntry({...currentEntry, warehouseId: e.target.value})}
+                         className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none appearance-none"
+                       >
+                          <option value="">-- Choose Warehouse --</option>
+                          {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                       </select>
                     </div>
                  </div>
-
-                 <button 
-                   onClick={handleManualAdd}
-                   disabled={!currentEntry.productId || !currentEntry.imei || !currentEntry.warehouseId}
-                   className="w-full py-4 bg-[#2e5bff] text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 disabled:opacity-50 transition-all"
-                 >
-                   Queue Asset to Manifest
-                 </button>
+                 <div className="flex gap-4">
+                    <input 
+                      type="text" 
+                      placeholder="Type IMEI..."
+                      value={currentEntry.imei}
+                      onChange={(e) => setCurrentEntry({...currentEntry, imei: e.target.value})}
+                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleManualAdd())}
+                      className="flex-1 bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none"
+                    />
+                    <button onClick={isScanning ? stopScanner : startScanner} className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${isScanning ? 'bg-rose-500/20 text-rose-500' : 'bg-[#2e5bff]/10 text-[#2e5bff] border border-[#2e5bff]/20'}`}>
+                       <span className="material-icons">{isScanning ? 'close' : 'photo_camera'}</span>
+                    </button>
+                 </div>
+                 <button onClick={handleManualAdd} className="w-full py-4 bg-[#2e5bff] text-white rounded-2xl font-black uppercase text-xs active:scale-95 transition-transform">Add to Manifest</button>
               </section>
 
-              <section className="space-y-6">
-                 <h3 className="text-xl font-bold text-white uppercase tracking-tight ml-2">Manifest Queue</h3>
-                 <div className="space-y-4">
-                    {activeBatch.length === 0 ? (
-                      <div className="p-16 border-2 border-dashed border-white/5 rounded-[2.5rem] flex flex-col items-center justify-center gap-4 opacity-30">
-                         <span className="material-icons text-5xl">inventory_2</span>
-                         <p className="text-xs font-black uppercase tracking-[0.3em]">Queue is empty</p>
-                      </div>
-                    ) : (
-                      activeBatch.map((item, i) => (
-                        <div key={i} className="p-8 bg-[#131b2e]/60 border border-white/5 rounded-[2.5rem] shadow-xl space-y-6">
-                           <div className="flex justify-between items-start">
-                              <div className="flex items-center gap-4">
-                                 <div className="w-12 h-12 rounded-2xl bg-[#2e5bff]/10 flex items-center justify-center text-[#2e5bff]">
-                                   <span className="material-icons text-2xl">devices</span>
-                                 </div>
-                                 <div>
-                                    <h4 className="text-lg font-black text-white">{item.productName}</h4>
-                                    <p className="text-[10px] font-bold text-[#4edea3] uppercase tracking-widest">Validated: {item.imeis.length} units</p>
-                                 </div>
-                              </div>
-                              <button onClick={() => setActiveBatch(activeBatch.filter((_, idx) => idx !== i))} className="text-rose-500 opacity-20 hover:opacity-100 transition-opacity">
-                                 <span className="material-icons">delete_outline</span>
-                              </button>
-                           </div>
-                           <div className="flex flex-wrap gap-3">
-                              {item.imeis.map((entry, idx) => (
-                                <div key={idx} className="px-4 py-2 bg-[#0b1326] border border-white/5 rounded-xl flex items-center gap-3">
-                                   <div className="flex flex-col">
-                                      <span className="text-[10px] font-mono font-bold text-[#8c9bbd]">{entry.imei}</span>
-                                      <span className="text-[8px] font-black text-[#2e5bff] uppercase tracking-tighter">
-                                         {warehouses.find(w => w.id === entry.warehouseId)?.name || 'Unknown Node'}
-                                      </span>
-                                   </div>
-                                   <button onClick={() => {
-                                      const newImeis = item.imeis.filter((_, subIdx) => subIdx !== idx);
-                                      if (newImeis.length === 0) {
-                                         setActiveBatch(activeBatch.filter((_, mainIdx) => mainIdx !== i));
-                                      } else {
-                                         setActiveBatch(activeBatch.map((obj, mainIdx) => mainIdx === i ? {...obj, imeis: newImeis} : obj));
-                                      }
-                                   }} className="text-rose-500/40 hover:text-rose-500 transition-colors">
-                                      <span className="material-icons text-xs">close</span>
+              <section className="space-y-4">
+                 {activeBatch.length === 0 ? (
+                    <div className="p-16 border-2 border-dashed border-white/5 rounded-[2.5rem] text-center opacity-30">
+                       <span className="material-icons text-5xl mb-2">inventory_2</span>
+                       <p className="text-xs font-bold uppercase tracking-widest">No items in manifest</p>
+                    </div>
+                 ) : (
+                    activeBatch.map((item, i) => (
+                       <div key={i} className="p-6 bg-[#131b2e]/60 border border-white/5 rounded-[2.5rem] shadow-xl space-y-4">
+                          <div className="flex justify-between items-center">
+                             <h4 className="font-black text-white">{item.productName}</h4>
+                             <span className="text-[10px] font-bold text-[#4edea3] uppercase">{item.imeis.length} units</span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                             {item.imeis.map((entry, idx) => (
+                                <div key={idx} className="px-3 py-1.5 bg-[#0b1326] border border-white/5 rounded-xl flex items-center gap-2">
+                                   <span className="text-[10px] font-mono text-[#8c9bbd]">{entry.imei}</span>
+                                   <span className="text-[8px] font-bold text-[#2e5bff] uppercase">{warehouses.find(w => w.id === entry.warehouseId)?.name.split(' ')[0]}</span>
+                                   <button 
+                                      onClick={() => {
+                                         const newImeis = item.imeis.filter((_, subIdx) => subIdx !== idx);
+                                         if (newImeis.length === 0) {
+                                            setActiveBatch(activeBatch.filter((_, mainIdx) => mainIdx !== i));
+                                         } else {
+                                            setActiveBatch(activeBatch.map((obj, mainIdx) => mainIdx === i ? {...obj, imeis: newImeis} : obj));
+                                         }
+                                      }}
+                                      className="text-rose-500/40 hover:text-rose-500 transition-colors material-icons text-xs"
+                                   >
+                                      close
                                    </button>
                                 </div>
-                              ))}
-                           </div>
-                        </div>
-                      ))
-                    )}
-                 </div>
+                             ))}
+                          </div>
+                       </div>
+                    ))
+                 )}
               </section>
            </div>
 
            <div className="space-y-6">
-              <div className="bg-[#131b2e] p-10 rounded-[3rem] border border-white/5 shadow-2xl sticky top-28 space-y-10">
-                 <div className="space-y-2">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8c9bbd] mb-4 text-center">Batch Overview</p>
-                    <div className="flex justify-between items-end bg-[#0b1326] p-8 rounded-[2rem] border border-white/5 shadow-inner">
-                       <span className="text-xs font-bold text-[#8c9bbd] uppercase">Total Assets</span>
-                       <span className="text-7xl font-black text-[#4edea3] tracking-tighter">
-                          {activeBatch.reduce((sum, i) => sum + i.imeis.length, 0).toString().padStart(2, '0')}
-                       </span>
-                    </div>
+              <div className="bg-[#131b2e] p-8 rounded-[3rem] border border-white/5 shadow-2xl sticky top-28 space-y-8">
+                 <div className="flex justify-between items-end bg-[#0b1326] p-6 rounded-[2rem]">
+                    <span className="text-xs font-bold text-[#8c9bbd] uppercase">Total Assets</span>
+                    <span className="text-5xl font-black text-[#4edea3]">{activeBatch.reduce((sum, item) => sum + item.imeis.length, 0)}</span>
                  </div>
-
-                 <div className="pt-4 space-y-4">
-                    <button 
-                      onClick={finalizeStockIn}
-                      disabled={loading || activeBatch.length === 0 || !originInfo.supplierName}
-                      className="w-full py-6 bg-gradient-to-br from-[#4e74ff] to-[#2e5bff] text-white rounded-[2rem] font-black text-lg shadow-2xl shadow-blue-500/40 active:scale-95 disabled:opacity-30 transition-all flex items-center justify-center gap-3 group"
-                    >
-                      {loading ? (
-                        <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                      ) : (
-                        <>
-                           <span className="uppercase tracking-[0.2em]">Commit to Ledger</span>
-                           <span className="material-icons group-hover:translate-x-1 transition-transform">rocket_launch</span>
-                        </>
-                      )}
-                    </button>
-                    <p className="text-[9px] text-center text-[#8c9bbd]/50 leading-relaxed px-4 italic">
-                       Finalizing will register these IMEIs into the central vault and increment product stock globally.
-                    </p>
-                 </div>
-              </div>
-
-              <div className="bg-[#131b2e] p-8 rounded-[2.5rem] border border-white/5 shadow-xl flex items-center gap-4">
-                 <span className="material-icons text-[#2e5bff]">verified_user</span>
-                 <p className="text-[9px] font-black text-[#8c9bbd] uppercase tracking-widest">Encrypted Ledger Protocol Active</p>
+                 <button 
+                   onClick={finalizeStockIn}
+                   disabled={loading || activeBatch.length === 0 || !originInfo.supplierName}
+                   className="w-full py-6 bg-gradient-to-br from-[#4e74ff] to-[#2e5bff] text-white rounded-[2rem] font-black text-lg shadow-xl active:scale-95 disabled:opacity-30 flex items-center justify-center gap-2"
+                 >
+                   {loading ? (
+                      <>
+                         <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                         <span>Processing...</span>
+                      </>
+                   ) : 'Commit to Ledger'}
+                 </button>
               </div>
            </div>
         </div>
