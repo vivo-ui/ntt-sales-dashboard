@@ -134,8 +134,8 @@ export default function AdminOverview() {
       <main className="pt-20 p-8 max-w-7xl mx-auto space-y-10">
         <header className="flex justify-between items-end">
            <div className="space-y-1">
-             <h1 className="text-5xl font-black tracking-tighter text-white uppercase italic">Inventory Dashboard</h1>
-             <p className="text-[#8c9bbd] text-sm font-medium uppercase tracking-[0.2em]">Operational Oversight & Predictive Stock Analysis</p>
+             <h1 className="text-5xl font-black tracking-tighter text-white uppercase italic">Inventory Dashboard (库存看板)</h1>
+             <p className="text-[#8c9bbd] text-sm font-medium uppercase tracking-[0.2em]">Monitoring Operasional & Analisis Prediktif Persediaan</p>
            </div>
            <div className="bg-[#131b2e] px-6 py-3 rounded-2xl border border-white/5 flex items-center gap-3">
               <span className="w-2 h-2 bg-[#4edea3] rounded-full animate-pulse"></span>
@@ -163,7 +163,7 @@ export default function AdminOverview() {
               <p className="text-rose-400 text-[10px] font-bold uppercase tracking-widest mb-6">Critical SKU Alerts</p>
               <h2 className="text-4xl font-black text-white mb-2">{metrics.criticalAlerts} <span className="text-lg font-medium text-rose-400/60">SKUs</span></h2>
               <div className="flex items-center gap-2 text-rose-400 text-xs font-bold uppercase">
-                 <span className="material-icons text-sm">warning</span> Immediate replenishment required
+                 <span className="material-icons text-sm">warning</span> Butuh restock secepatnya
               </div>
            </div>
         </div>

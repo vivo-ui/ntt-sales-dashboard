@@ -11,7 +11,7 @@ export default function SidebarAdmin() {
     { name: 'Barang Masuk', path: '/dashboard-admin/stock-in', icon: 'login' },
     { name: 'Barang Keluar', path: '/dashboard-admin/stock-out', icon: 'logout' },
     { name: 'Transfer Stok', path: '/dashboard-admin/transfers', icon: 'swap_horiz' }, // NEW MENU ADDED
-    { name: 'Ledger Stok', path: '/dashboard-admin/ledger', icon: 'menu_book' },
+    { name: 'Database Stok', path: '/dashboard-admin/ledger', icon: 'menu_book' },
   ]
 
   return (
