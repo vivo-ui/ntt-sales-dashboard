@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
@@ -110,9 +111,9 @@ export default function StockInManualSupplierPage() {
     addImeiToBatch(currentEntry.productId, currentEntry.imei, currentEntry.warehouseId)
   }
 
-  const handleExportExcel = () => {
+  const handleExportCurrentBatch = () => {
     if (activeBatch.length === 0) {
-      alert('Batch list is empty.')
+      alert('Active batch list is empty.')
       return
     }
     
@@ -122,8 +123,9 @@ export default function StockInManualSupplierPage() {
         item.imeis.forEach(entry => {
           const warehouseName = warehouses.find(w => w.id === entry.warehouseId)?.name || 'Unknown'
           exportRows.push({
+            'Type': 'CURRENT_BATCH',
             'Supplier': originInfo.supplierName || 'Manual Entry',
-            'Tanggal Datang': originInfo.deliveryDate,
+            'Tanggal': originInfo.deliveryDate,
             'Nama Produk': item.productName,
             'IMEI': entry.imei,
             'Gudang': warehouseName,
@@ -131,16 +133,60 @@ export default function StockInManualSupplierPage() {
           })
         })
       })
-
-      const ws = XLSX.utils.json_to_sheet(exportRows)
-      const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, 'Stock_In_Batch')
-      const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
-      saveAs(new Blob([buf], { type: 'application/octet-stream' }), `StockIn_Batch_${new Date().getTime()}.xlsx`)
+      generateExcel(exportRows, 'Current_StockIn_Batch')
     } catch (err) {
       console.error('Export Error:', err)
       alert('Failed to export Excel.')
     }
+  }
+
+  const handleExportHistory = async () => {
+    setLoading(true)
+    try {
+      // NOTE: Ensure the SQL FIX script is run first to avoid Relationship Errors
+      const { data, error } = await supabase
+        .from('inventory_items')
+        .select(`
+          imei, 
+          created_at, 
+          status,
+          products (name),
+          location:location_id (name)
+        `)
+        .eq('status', 'IN_WAREHOUSE')
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      if (!data || data.length === 0) {
+        alert('No historical stock-in data found.')
+        return
+      }
+
+      const exportRows = data.map((item: any) => ({
+        'Type': 'HISTORICAL_STOCK',
+        'Tanggal Masuk': new Date(item.created_at).toLocaleString(),
+        'Nama Produk': item.products?.name || 'Unknown',
+        'IMEI': item.imei,
+        'Gudang': item.location?.name || 'Main Warehouse',
+        'Status': item.status
+      }))
+
+      generateExcel(exportRows, 'StockIn_History_Full')
+    } catch (err: any) {
+      console.error('History Export Failed:', err)
+      alert('History Export Failed. Make sure to run the SQL Relationship fix first.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const generateExcel = (rows: any[], fileName: string) => {
+    const ws = XLSX.utils.json_to_sheet(rows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Stock_Data')
+    const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+    saveAs(new Blob([buf], { type: 'application/octet-stream' }), `${fileName}_${new Date().getTime()}.xlsx`)
   }
 
   const finalizeStockIn = async () => {
@@ -191,17 +237,23 @@ export default function StockInManualSupplierPage() {
   return (
     <div className="min-h-screen bg-[#0b1326] text-[#dae2fd] font-manrope">
       <main className="lg:pl-64 pt-20 p-6 max-w-7xl mx-auto space-y-10 pb-32">
-        <header className="flex justify-between items-center">
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
            <div className="space-y-1">
              <h1 className="text-4xl font-black text-white uppercase italic tracking-tight">Admin Stock-In</h1>
-             <p className="text-[#8c9bbd] text-sm font-medium uppercase tracking-widest">Register inbound shipments</p>
+             <p className="text-[#8c9bbd] text-sm font-medium uppercase tracking-widest">Register inbound shipments & export logs</p>
            </div>
-           <div className="flex gap-4">
+           <div className="flex flex-wrap gap-3">
               <button 
-                onClick={handleExportExcel}
+                onClick={handleExportCurrentBatch}
+                className="px-6 py-2 bg-[#2e5bff]/10 border border-[#2e5bff]/20 text-[#2e5bff] rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-[#2e5bff] hover:text-white transition-all"
+              >
+                 <span className="material-icons text-sm">download</span> Export Current Batch
+              </button>
+              <button 
+                onClick={handleExportHistory}
                 className="px-6 py-2 bg-white/5 border border-white/10 text-white rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-white/10 transition-all"
               >
-                 <span className="material-icons text-sm">download</span> Export Excel
+                 <span className="material-icons text-sm">history</span> Export History
               </button>
            </div>
         </header>
@@ -247,7 +299,7 @@ export default function StockInManualSupplierPage() {
                        </select>
                     </div>
                     <div className="space-y-2">
-                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd]">Warehouse</label>
+                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd]">Warehouse Node</label>
                        <select 
                          value={currentEntry.warehouseId}
                          onChange={(e) => setCurrentEntry({...currentEntry, warehouseId: e.target.value})}
@@ -267,7 +319,7 @@ export default function StockInManualSupplierPage() {
                       onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleManualAdd())}
                       className="flex-1 bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none"
                     />
-                    <button onClick={isScanning ? stopScanner : startScanner} className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${isScanning ? 'bg-rose-500/20 text-rose-500' : 'bg-[#2e5bff]/10 text-[#2e5bff] border border-[#2e5bff]/20'}`}>
+                    <button onClick={isScanning ? stopScanner : startScanner} className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${isScanning ? 'bg-rose-500/20 text-rose-500 border border-rose-500/30' : 'bg-[#2e5bff]/10 text-[#2e5bff] border border-[#2e5bff]/20'}`}>
                        <span className="material-icons">{isScanning ? 'close' : 'photo_camera'}</span>
                     </button>
                  </div>
@@ -317,7 +369,7 @@ export default function StockInManualSupplierPage() {
            <div className="space-y-6">
               <div className="bg-[#131b2e] p-8 rounded-[3rem] border border-white/5 shadow-2xl sticky top-28 space-y-8">
                  <div className="flex justify-between items-end bg-[#0b1326] p-6 rounded-[2rem]">
-                    <span className="text-xs font-bold text-[#8c9bbd] uppercase">Total Assets</span>
+                    <span className="text-xs font-bold text-[#8c9bbd] uppercase">Session Total</span>
                     <span className="text-5xl font-black text-[#4edea3]">{activeBatch.reduce((sum, item) => sum + item.imeis.length, 0)}</span>
                  </div>
                  <button 
@@ -328,10 +380,16 @@ export default function StockInManualSupplierPage() {
                    {loading ? (
                       <>
                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                         <span>Processing...</span>
+                         <span>Syncing Ledger...</span>
                       </>
                    ) : 'Commit to Ledger'}
                  </button>
+                 <div className="bg-white/5 p-6 rounded-2xl border border-white/5">
+                    <p className="text-[9px] font-black text-[#8c9bbd] uppercase tracking-[0.2em] mb-3">Ledger Intelligence</p>
+                    <p className="text-[11px] leading-relaxed text-[#dae2fd]/60 italic">
+                       Finalizing will register individual IMEIs into the central vault and increment product stock globally.
+                    </p>
+                 </div>
               </div>
            </div>
         </div>
