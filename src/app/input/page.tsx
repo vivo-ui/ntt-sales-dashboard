@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -9,13 +10,11 @@ export default function InputPage() {
   const [filteredStores, setFilteredStores] = useState<any[]>([])
   const [pics, setPics] = useState<string[]>([])
   const [products, setProducts] = useState<any[]>([])
-
   const [selectedPic, setSelectedPic] = useState('')
   const [storeId, setStoreId] = useState('')
   const [productId, setProductId] = useState('')
   const [qty, setQty] = useState(1)
   const [imei, setImei] = useState('')
-
   const [scanning, setScanning] = useState(false)
 
   useEffect(() => {
@@ -26,12 +25,9 @@ export default function InputPage() {
   // ================= STORES =================
   const fetchStores = async () => {
     const { data, error } = await supabase.from('stores').select('*')
-
     console.log('🔥 STORES:', data)
     console.log('❌ ERROR:', error)
-
     setStores(data || [])
-
     // 🔥 HANDLE SEMUA KEMUNGKINAN FIELD PIC
     const uniquePics = [
       ...new Set(
@@ -40,10 +36,8 @@ export default function InputPage() {
           .filter(Boolean)
       ),
     ]
-
     console.log('🔥 PICS:', uniquePics)
-
-    setPics(uniquePics)
+    setPics(uniquePics as string[])
   }
 
   // ================= PRODUCTS =================
@@ -66,41 +60,38 @@ export default function InputPage() {
     } else {
       setFilteredStores([])
     }
-
     setStoreId('')
   }, [selectedPic, stores])
 
-  // ================= SCANNER (KAMERA BELAKANG) =================
+  // ================= SCANNER (OPTIMIZED FOR BACK CAMERA) =================
   const startScanner = async () => {
     setScanning(true)
-
     const html5QrCode = new Html5Qrcode('reader')
-
+    
     try {
-      const devices = await Html5Qrcode.getCameras()
-
-      if (devices && devices.length) {
-        const backCamera = devices[devices.length - 1].id
-
-        await html5QrCode.start(
-          backCamera,
-          {
-            fps: 10,
-            qrbox: 250,
-          },
-          (decodedText) => {
-            setImei(decodedText)
-            html5QrCode.stop()
-            setScanning(false)
-          },
-          (error) => {
-            console.log(error)
-          }
-        )
+      // Configuration for high-accuracy barcode scanning
+      const config = {
+        fps: 10,
+        qrbox: 250,
       }
+
+      // Automatically try to use environment-facing camera (back camera)
+      await html5QrCode.start(
+        { facingMode: "environment" }, 
+        config,
+        (decodedText) => {
+          setImei(decodedText)
+          html5QrCode.stop().then(() => {
+            setScanning(false)
+          }).catch(err => console.error(err))
+        },
+        (errorMessage) => {
+          // Scanning failures are common while aiming, so we just log them
+        }
+      )
     } catch (err) {
-      console.error(err)
-      alert('Tidak bisa akses kamera')
+      console.error('Camera access error:', err)
+      alert('Gagal mengakses kamera belakang. Pastikan izin kamera aktif.')
       setScanning(false)
     }
   }
@@ -111,21 +102,17 @@ export default function InputPage() {
       alert('Lengkapi semua data!')
       return
     }
-
     if (imei.length < 10) {
       alert('IMEI tidak valid')
       return
     }
-
     // 🔥 ambil user login
     const { data: userData } = await supabase.auth.getUser()
     const userId = userData?.user?.id
-
     if (!userId) {
       alert('User tidak ditemukan, login ulang!')
       return
     }
-
     const { error } = await supabase.from('sales_reports').insert([
       {
         store_id: storeId,
@@ -135,7 +122,6 @@ export default function InputPage() {
         user_id: userId,
       },
     ])
-
     if (error) {
       console.error(error)
       alert('IMEI mungkin sudah terpakai!')
@@ -151,7 +137,7 @@ export default function InputPage() {
   return (
     <div style={{ padding: 20 }}>
       <h1>Input Penjualan</h1>
-
+      
       {/* PIC */}
       <div>
         <label>Pilih PIC:</label><br />
@@ -167,7 +153,6 @@ export default function InputPage() {
           ))}
         </select>
       </div>
-
       <br />
 
       {/* TOKO */}
@@ -186,7 +171,6 @@ export default function InputPage() {
           ))}
         </select>
       </div>
-
       <br />
 
       {/* PRODUK */}
@@ -204,7 +188,6 @@ export default function InputPage() {
           ))}
         </select>
       </div>
-
       <br />
 
       {/* IMEI */}
@@ -215,21 +198,17 @@ export default function InputPage() {
           value={imei}
           onChange={(e) => setImei(e.target.value)}
         />
-
         <br /><br />
-
         <button onClick={startScanner}>
           📷 Scan IMEI
         </button>
       </div>
-
       <br />
 
-      {/* CAMERA */}
+      {/* CAMERA CONTAINER */}
       {scanning && (
-        <div id="reader" style={{ width: 300 }} />
+        <div id="reader" style={{ width: 300, border: '1px solid #ccc', borderRadius: '10px', overflow: 'hidden' }} />
       )}
-
       <br />
 
       {/* QTY */}
@@ -237,7 +216,6 @@ export default function InputPage() {
         <label>Qty:</label><br />
         <input value={1} disabled />
       </div>
-
       <br />
 
       <button onClick={handleSubmit}>Simpan</button>
