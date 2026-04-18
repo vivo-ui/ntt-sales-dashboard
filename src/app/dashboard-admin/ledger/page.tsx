@@ -31,7 +31,11 @@ export default function InventoryLedger() {
           source_destination,
           product_id,
           products (name),
-          inventory_items (imei, status)
+          inventory_items (
+            imei, 
+            status,
+            warehouses:location_id (name)
+          )
         `)
         .order('created_at', { ascending: false })
       
@@ -66,21 +70,27 @@ export default function InventoryLedger() {
     }
 
     try {
-      const exportRows = filteredData.map(t => ({
-        'Tanggal': new Date(t.created_at).toLocaleString(),
-        'Tipe': t.type.replace('_', ' '),
-        'Produk': t.products?.name || '-',
-        'IMEI / Serial': t.inventory_items?.map((i: any) => i.imei).join(', ') || 'Batch',
-        'Quantity': t.quantity,
-        'Tujuan/Sumber': t.source_destination || '-',
-        'Status Saat Ini': t.inventory_items?.[0]?.status || 'COMPLETED'
-      }))
+      const exportRows = filteredData.map(t => {
+        const item = t.inventory_items?.[0]
+        const locationName = item?.warehouses?.name || 'N/A'
+        
+        return {
+          'Tanggal': new Date(t.created_at).toLocaleString(),
+          'Tipe': t.type.replace('_', ' '),
+          'Produk': t.products?.name || '-',
+          'IMEI / Serial': t.inventory_items?.map((i: any) => i.imei).join(', ') || 'Batch',
+          'Quantity': t.quantity,
+          'Tujuan/Sumber': t.source_destination || '-',
+          'Lokasi Gudang': locationName,
+          'Status Saat Ini': item?.status || 'COMPLETED'
+        }
+      })
 
       const ws = XLSX.utils.json_to_sheet(exportRows)
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, ws, 'Inventory_Ledger')
       const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
-      saveAs(new Blob([buf], { type: 'application/octet-stream' }), `Inventory_Ledger_Filtered_${new Date().getTime()}.xlsx`)
+      saveAs(new Blob([buf], { type: 'application/octet-stream' }), `Inventory_Ledger_Location_Sync_\${new Date().getTime()}.xlsx`)
     } catch (err) {
       console.error('Export Error:', err)
       alert('Failed to generate Excel file.')
@@ -169,7 +179,7 @@ export default function InventoryLedger() {
                        <th className="px-10 py-6">Product Details</th>
                        <th className="px-10 py-6">Quantity</th>
                        <th className="px-10 py-6">Entity/Node</th>
-                       <th className="px-10 py-6 text-right">Status</th>
+                       <th className="px-10 py-6 text-right">Status & Location</th>
                     </tr>
                  </thead>
                  <tbody className="divide-y divide-white/5">
@@ -178,37 +188,47 @@ export default function InventoryLedger() {
                         <td colSpan={6} className="px-10 py-20 text-center text-[#8c9bbd] uppercase font-black tracking-widest opacity-30">No matching records found</td>
                       </tr>
                     ) : (
-                      filteredData.map((t, i) => (
-                        <tr key={i} className="group hover:bg-white/[0.02] transition-colors">
-                            <td className="px-10 py-8">
-                              <p className="text-sm font-bold text-white mb-1">{new Date(t.created_at).toLocaleDateString()}</p>
-                              <p className="text-[10px] font-medium text-[#8c9bbd] uppercase">{new Date(t.created_at).toLocaleTimeString()}</p>
-                            </td>
-                            <td className="px-10 py-8">
-                              <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${t.type === 'STOCK_IN' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
-                                  {t.type.replace('_', ' ')}
-                              </span>
-                            </td>
-                            <td className="px-10 py-8">
-                              <p className="text-sm font-black text-white mb-1">{t.products?.name}</p>
-                              <p className="text-[10px] font-mono text-[#8c9bbd] uppercase tracking-tighter">ID: {t.id.substring(0, 12).toUpperCase()}</p>
-                            </td>
-                            <td className="px-10 py-8">
-                              <p className={`text-lg font-black ${t.type === 'STOCK_IN' ? 'text-emerald-400' : 'text-blue-400'}`}>
-                                  {t.type === 'STOCK_IN' ? '+' : '-'}{t.quantity}
-                              </p>
-                            </td>
-                            <td className="px-10 py-8">
-                              <p className="text-sm font-black text-white mb-1">{t.source_destination}</p>
-                              <p className="text-[10px] font-medium text-[#8c9bbd] uppercase tracking-widest italic">Warehouse Node</p>
-                            </td>
-                            <td className="px-10 py-8 text-right">
-                              <span className="text-[10px] font-black text-[#4edea3] uppercase tracking-tighter">
-                                  {t.inventory_items?.[0]?.status || 'PROCESSED'}
-                              </span>
-                            </td>
-                        </tr>
-                      ))
+                      filteredData.map((t, i) => {
+                        const item = t.inventory_items?.[0]
+                        const locationName = item?.warehouses?.name || 'N/A'
+                        
+                        return (
+                          <tr key={i} className="group hover:bg-white/[0.02] transition-colors">
+                              <td className="px-10 py-8">
+                                <p className="text-sm font-bold text-white mb-1">{new Date(t.created_at).toLocaleDateString()}</p>
+                                <p className="text-[10px] font-medium text-[#8c9bbd] uppercase">{new Date(t.created_at).toLocaleTimeString()}</p>
+                              </td>
+                              <td className="px-10 py-8">
+                                <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border \${t.type === 'STOCK_IN' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
+                                    {t.type.replace('_', ' ')}
+                                </span>
+                              </td>
+                              <td className="px-10 py-8">
+                                <p className="text-sm font-black text-white mb-1">{t.products?.name}</p>
+                                <p className="text-[10px] font-mono text-[#8c9bbd] uppercase tracking-tighter">ID: {t.id.substring(0, 12).toUpperCase()}</p>
+                              </td>
+                              <td className="px-10 py-8">
+                                <p className={`text-lg font-black \${t.type === 'STOCK_IN' ? 'text-emerald-400' : 'text-blue-400'}`}>
+                                    {t.type === 'STOCK_IN' ? '+' : '-'}{t.quantity}
+                                </p>
+                              </td>
+                              <td className="px-10 py-8">
+                                <p className="text-sm font-black text-white mb-1">{t.source_destination}</p>
+                                <p className="text-[10px] font-medium text-[#8c9bbd] uppercase tracking-widest italic">Warehouse Node</p>
+                              </td>
+                              <td className="px-10 py-8 text-right">
+                                <div className="space-y-1">
+                                  <span className="text-[10px] font-black text-[#4edea3] uppercase tracking-tighter">
+                                      {item?.status || 'PROCESSED'}
+                                  </span>
+                                  <p className="text-[9px] font-bold text-[#2e5bff] uppercase tracking-widest">
+                                    {locationName.toUpperCase()}
+                                  </p>
+                                </div>
+                              </td>
+                          </tr>
+                        )
+                      })
                     )}
                  </tbody>
               </table>
