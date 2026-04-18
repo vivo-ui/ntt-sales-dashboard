@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -93,8 +92,8 @@ export default function InventoryLedger() {
       <main className="lg:pl-64 pt-20 p-8 space-y-8">
         <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
           <div className="space-y-1">
-            <h1 className="text-4xl font-black tracking-tight text-white uppercase italic">Inventory Ledger</h1>
-            <p className="text-[#8c9bbd] text-sm font-medium uppercase tracking-[0.2em]">Detailed audit trail of every asset movement.</p>
+            <h1 className="text-4xl font-black tracking-tight text-white uppercase italic">Inventory Database (库存管理数据库)</h1>
+            <p className="text-[#8c9bbd] text-sm font-medium uppercase tracking-[0.2em]">Catatan audit rinci dari setiap pergerakan aset/stock</p>
           </div>
           <button 
             onClick={exportToExcel}
