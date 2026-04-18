@@ -10,6 +10,9 @@ export default function InventoryLedger() {
   const [transactions, setTransactions] = useState<any[]>([])
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState('ALL')
+  // NEW: Date Range States
+  const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0])
+  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -42,18 +45,24 @@ export default function InventoryLedger() {
     }
   }
 
+  // UPDATED: Fully Functional Filter Logic
   const filteredData = transactions.filter(t => {
     const productName = t.products?.name || ''
     const destination = t.source_destination || ''
     const matchesSearch = productName.toLowerCase().includes(search.toLowerCase()) || 
                           destination.toLowerCase().includes(search.toLowerCase())
     const matchesType = filterType === 'ALL' || t.type === filterType
-    return matchesSearch && matchesType
+    
+    // NEW: Date Range Filtering
+    const transactionDate = new Date(t.created_at).toISOString().split('T')[0]
+    const matchesDate = transactionDate >= startDate && transactionDate <= endDate
+
+    return matchesSearch && matchesType && matchesDate
   })
 
   const exportToExcel = () => {
     if (filteredData.length === 0) {
-      alert('No data to export')
+      alert('No data to export for current filters.')
       return
     }
 
@@ -72,7 +81,7 @@ export default function InventoryLedger() {
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, ws, 'Inventory_Ledger')
       const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
-      saveAs(new Blob([buf], { type: 'application/octet-stream' }), `Inventory_Ledger_Export_${new Date().getTime()}.xlsx`)
+      saveAs(new Blob([buf], { type: 'application/octet-stream' }), `Inventory_Ledger_Filtered_${new Date().getTime()}.xlsx`)
     } catch (err) {
       console.error('Export Error:', err)
       alert('Failed to generate Excel file.')
@@ -95,18 +104,21 @@ export default function InventoryLedger() {
           </button>
         </header>
 
-        {/* Filters */}
+        {/* UPDATED: Functional Filters */}
         <section className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-[#131b2e]/40 p-6 rounded-[2.5rem] border border-white/5 shadow-xl">
-           <div className="md:col-span-2 relative group">
+           {/* Search Input */}
+           <div className="md:col-span-1 relative group">
               <span className="material-icons absolute left-5 top-1/2 -translate-y-1/2 text-[#8c9bbd] group-focus-within:text-[#2e5bff] transition-colors">search</span>
               <input 
                 type="text" 
-                placeholder="Product ID, SKU, or Admin name..."
+                placeholder="Product or Node name..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full bg-[#0b1326] border border-white/5 rounded-2xl py-4 pl-14 pr-6 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50 transition-all"
               />
            </div>
+
+           {/* Asset Type Selector */}
            <div>
               <select 
                 value={filterType}
@@ -118,9 +130,27 @@ export default function InventoryLedger() {
                  <option value="STOCK_OUT">Stock-Out Fulfillment</option>
               </select>
            </div>
-           <div className="bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4 flex items-center gap-3">
-              <span className="material-icons text-sm text-[#8c9bbd]">calendar_today</span>
-              <span className="text-xs font-bold text-white uppercase tracking-tighter">Current Cycle</span>
+
+           {/* Date Range Filters */}
+           <div className="grid grid-cols-2 gap-3 md:col-span-2">
+              <div className="relative group">
+                <input 
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-4 py-4 text-xs font-bold text-white outline-none focus:border-[#2e5bff]/50 transition-all"
+                />
+                <span className="absolute -top-2 left-4 bg-[#131b2e] px-2 text-[8px] font-black text-[#8c9bbd] uppercase tracking-widest">Start Date</span>
+              </div>
+              <div className="relative group">
+                <input 
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-4 py-4 text-xs font-bold text-white outline-none focus:border-[#2e5bff]/50 transition-all"
+                />
+                <span className="absolute -top-2 left-4 bg-[#131b2e] px-2 text-[8px] font-black text-[#8c9bbd] uppercase tracking-widest">End Date</span>
+              </div>
            </div>
         </section>
 
@@ -140,47 +170,53 @@ export default function InventoryLedger() {
                        <th className="px-10 py-6">Product Details</th>
                        <th className="px-10 py-6">Quantity</th>
                        <th className="px-10 py-6">Entity/Node</th>
-                       <th className="px-10 py-6 text-right">Current Status</th>
+                       <th className="px-10 py-6 text-right">Status</th>
                     </tr>
                  </thead>
                  <tbody className="divide-y divide-white/5">
-                    {filteredData.map((t, i) => (
-                       <tr key={i} className="group hover:bg-white/[0.02] transition-colors">
-                          <td className="px-10 py-8">
-                             <p className="text-sm font-bold text-white mb-1">{new Date(t.created_at).toLocaleDateString()}</p>
-                             <p className="text-[10px] font-medium text-[#8c9bbd] uppercase">{new Date(t.created_at).toLocaleTimeString()}</p>
-                          </td>
-                          <td className="px-10 py-8">
-                             <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${t.type === 'STOCK_IN' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
-                                {t.type.replace('_', ' ')}
-                             </span>
-                          </td>
-                          <td className="px-10 py-8">
-                             <p className="text-sm font-black text-white mb-1">{t.products?.name}</p>
-                             <p className="text-[10px] font-mono text-[#8c9bbd] uppercase tracking-tighter">ID: {t.id.substring(0, 12).toUpperCase()}</p>
-                          </td>
-                          <td className="px-10 py-8">
-                             <p className={`text-lg font-black ${t.type === 'STOCK_IN' ? 'text-emerald-400' : 'text-blue-400'}`}>
-                                {t.type === 'STOCK_IN' ? '+' : '-'}{t.quantity}
-                             </p>
-                          </td>
-                          <td className="px-10 py-8">
-                             <p className="text-sm font-black text-white mb-1">{t.source_destination}</p>
-                             <p className="text-[10px] font-medium text-[#8c9bbd] uppercase tracking-widest italic">Warehouse Log</p>
-                          </td>
-                          <td className="px-10 py-8 text-right">
-                             <span className="text-[10px] font-black text-[#4edea3] uppercase tracking-tighter">
-                                {t.inventory_items?.[0]?.status || 'PROCESSED'}
-                             </span>
-                          </td>
-                       </tr>
-                    ))}
+                    {filteredData.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-10 py-20 text-center text-[#8c9bbd] uppercase font-black tracking-widest opacity-30">No matching records found</td>
+                      </tr>
+                    ) : (
+                      filteredData.map((t, i) => (
+                        <tr key={i} className="group hover:bg-white/[0.02] transition-colors">
+                            <td className="px-10 py-8">
+                              <p className="text-sm font-bold text-white mb-1">{new Date(t.created_at).toLocaleDateString()}</p>
+                              <p className="text-[10px] font-medium text-[#8c9bbd] uppercase">{new Date(t.created_at).toLocaleTimeString()}</p>
+                            </td>
+                            <td className="px-10 py-8">
+                              <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${t.type === 'STOCK_IN' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
+                                  {t.type.replace('_', ' ')}
+                              </span>
+                            </td>
+                            <td className="px-10 py-8">
+                              <p className="text-sm font-black text-white mb-1">{t.products?.name}</p>
+                              <p className="text-[10px] font-mono text-[#8c9bbd] uppercase tracking-tighter">ID: {t.id.substring(0, 12).toUpperCase()}</p>
+                            </td>
+                            <td className="px-10 py-8">
+                              <p className={`text-lg font-black ${t.type === 'STOCK_IN' ? 'text-emerald-400' : 'text-blue-400'}`}>
+                                  {t.type === 'STOCK_IN' ? '+' : '-'}{t.quantity}
+                              </p>
+                            </td>
+                            <td className="px-10 py-8">
+                              <p className="text-sm font-black text-white mb-1">{t.source_destination}</p>
+                              <p className="text-[10px] font-medium text-[#8c9bbd] uppercase tracking-widest italic">Warehouse Node</p>
+                            </td>
+                            <td className="px-10 py-8 text-right">
+                              <span className="text-[10px] font-black text-[#4edea3] uppercase tracking-tighter">
+                                  {t.inventory_items?.[0]?.status || 'PROCESSED'}
+                              </span>
+                            </td>
+                        </tr>
+                      ))
+                    )}
                  </tbody>
               </table>
            </div>
            
            <footer className="p-8 border-t border-white/5 flex justify-between items-center bg-[#0b1326]/40">
-              <p className="text-xs font-bold text-[#8c9bbd] uppercase tracking-widest">Showing {filteredData.length} records in current session</p>
+              <p className="text-xs font-bold text-[#8c9bbd] uppercase tracking-widest">Showing {filteredData.length} records</p>
               <div className="flex gap-2">
                  <button className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white hover:bg-white/10 transition-colors material-icons">chevron_left</button>
                  <button className="w-10 h-10 rounded-xl bg-[#2e5bff] flex items-center justify-center text-white font-black text-xs shadow-lg shadow-blue-500/20">1</button>
