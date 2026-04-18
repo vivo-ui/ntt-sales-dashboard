@@ -63,19 +63,18 @@ export default function InputPage() {
     setStoreId('')
   }, [selectedPic, stores])
 
-  // ================= SCANNER (OPTIMIZED FOR BACK CAMERA) =================
+  // ================= SCANNER (FIXED BACK CAMERA) =================
   const startScanner = async () => {
     setScanning(true)
     const html5QrCode = new Html5Qrcode('reader')
     
     try {
-      // Configuration for high-accuracy barcode scanning
       const config = {
         fps: 10,
-        qrbox: 250,
+        qrbox: { width: 250, height: 150 }, // Optimized for horizontal barcodes
       }
 
-      // Automatically try to use environment-facing camera (back camera)
+      // 🛠️ MENGGUNAKAN facingMode "environment" UNTUK KAMERA BELAKANG
       await html5QrCode.start(
         { facingMode: "environment" }, 
         config,
@@ -86,7 +85,7 @@ export default function InputPage() {
           }).catch(err => console.error(err))
         },
         (errorMessage) => {
-          // Scanning failures are common while aiming, so we just log them
+          // Scanning failures are common during target acquisition
         }
       )
     } catch (err) {
@@ -200,7 +199,7 @@ export default function InputPage() {
         />
         <br /><br />
         <button onClick={startScanner}>
-          📷 Scan IMEI
+          📷 Scan IMEI (Kamera Belakang)
         </button>
       </div>
       <br />
