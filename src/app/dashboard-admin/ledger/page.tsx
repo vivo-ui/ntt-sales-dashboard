@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -9,11 +10,12 @@ export default function InventoryLedger() {
   const [transactions, setTransactions] = useState<any[]>([])
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState('ALL')
-  const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMontsh(), 1).toISOString().split('T')[0])
+  // FIXED TYPO: getMonth() instead of getMontsh()
+  const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0])
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {s
+  useEffect(() => {
     fetchLedger()
   }, [])
 
@@ -60,7 +62,6 @@ export default function InventoryLedger() {
     return matchesSearch && matchesType && matchesDate
   })
 
-  // FIXED: Logic to export 1 row per IMEI
   const exportToExcel = () => {
     if (filteredData.length === 0) {
       alert('No data to export for current filters.')
@@ -74,7 +75,6 @@ export default function InventoryLedger() {
         const items = t.inventory_items || []
         
         if (items.length > 0) {
-          // Create a dedicated row for each individual IMEI in the transaction
           items.forEach((item: any) => {
             const locationName = item.warehouses?.name || 'N/A'
             exportRows.push({
@@ -82,14 +82,13 @@ export default function InventoryLedger() {
               'Tipe': t.type.replace('_', ' '),
               'Produk': t.products?.name || '-',
               'IMEI / Serial': item.imei || '-',
-              'Quantity': 1, // Each row represents 1 unit
+              'Quantity': 1,
               'Tujuan/Sumber': t.source_destination || '-',
               'Lokasi Gudang': locationName,
               'Status Saat Ini': item.status || 'COMPLETED'
             })
           })
         } else {
-          // Fallback for batch transactions without individual item links
           exportRows.push({
             'Tanggal': new Date(t.created_at).toLocaleString(),
             'Tipe': t.type.replace('_', ' '),
@@ -130,7 +129,6 @@ export default function InventoryLedger() {
           </button>
         </header>
 
-        {/* Filters */}
         <section className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-[#131b2e]/40 p-6 rounded-[2.5rem] border border-white/5 shadow-xl">
            <div className="md:col-span-1 relative group">
               <span className="material-icons absolute left-5 top-1/2 -translate-y-1/2 text-[#8c9bbd] group-focus-within:text-[#2e5bff] transition-colors">search</span>
@@ -177,7 +175,6 @@ export default function InventoryLedger() {
            </div>
         </section>
 
-        {/* Ledger Table */}
         <section className="bg-[#131b2e] rounded-[2.5rem] border border-white/5 overflow-hidden shadow-2xl relative">
            {loading && (
              <div className="absolute inset-0 bg-[#0b1326]/60 backdrop-blur-sm z-10 flex items-center justify-center">
