@@ -9,11 +9,11 @@ export default function InventoryLedger() {
   const [transactions, setTransactions] = useState<any[]>([])
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState('ALL')
-  const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0])
+  const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMontsh(), 1).toISOString().split('T')[0])
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  useEffect(() => {s
     fetchLedger()
   }, [])
 
