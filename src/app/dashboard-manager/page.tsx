@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -31,7 +30,7 @@ export default function DashboardManager() {
   const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0])
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0])
   
-  const [activeTab, setActiveTab] = useState('dashboard') // 'dashboard' | 'reports' | 'analytics'
+  const [activeTab, setActiveTab] = useState('dashboard')
   const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
@@ -44,10 +43,8 @@ export default function DashboardManager() {
       const startRange = `${startDate}T00:00:00Z`
       const endRange = `${endDate}T23:59:59Z`
 
-      // 1. Fetch PIC Profiles
       const { data: picData } = await supabase.from('profiles').select('id, email, role').eq('role', 'pic')
       
-      // 2. Fetch Sales (Sell-Out) within date range
       const { data: salesData } = await supabase.from('sales_reports')
         .select(`
           id, qty, imei, created_at, staff_role, staff_name, product_id,
@@ -58,13 +55,9 @@ export default function DashboardManager() {
         .gte('created_at', startRange)
         .lte('created_at', endRange)
 
-      // 3. Fetch Targets
       const { data: targetData } = await supabase.from('targets').select('*')
-
-      // 4. Fetch Products (Warehouse Data)
       const { data: productData } = await supabase.from('products').select('*')
 
-      // 5. Fetch Sell-In Data (From warehouse stock-out transactions)
       const { data: sellInData } = await supabase.from('inventory_transactions')
         .select(`
           quantity, product_id, created_at,
@@ -86,21 +79,11 @@ export default function DashboardManager() {
     }
   }
 
-  // --- LOGIKA PENGOLAHAN DATA ---
-  
-  // Sell-Out Metrics
   const totalUnitSold = sales.reduce((sum, s) => sum + Number(s.qty ?? 1), 0)
   const totalOmzetSold = sales.reduce((sum, s) => sum + (Number(s.qty ?? 1) * Number(s.products?.price ?? 0)), 0)
-
-  // Sell-In Metrics
   const totalSellInUnits = sellIn.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
   const totalSellInValue = sellIn.reduce((sum, item) => sum + (Number(item.quantity || 0) * Number(item.products?.price || 0)), 0)
 
-  // Warehouse Metrics
-  const totalStockUnits = inventory.reduce((sum, p) => sum + Number(p.current_stock || 0), 0)
-  const totalStockValue = inventory.reduce((sum, p) => sum + (Number(p.current_stock || 0) * Number(p.price || 0)), 0)
-
-  // Grafik: Pendapatan per Toko
   const storeSales: { [key: string]: number } = {}
   sales.forEach(s => {
     const storeName = s.stores?.name || 'Unknown'
@@ -112,7 +95,6 @@ export default function DashboardManager() {
     omzet: storeSales[store]
   })).sort((a, b) => b.omzet - a.omzet)
 
-  // Grafik: Tren Penjualan Harian
   const dailyData: { [key: string]: number } = {}
   sales.forEach(s => {
     const dateStr = new Date(s.created_at).toISOString().split('T')[0]
@@ -123,7 +105,6 @@ export default function DashboardManager() {
   })
   const trendChartData = dateLabels.map(d => ({ day: d.split('-')[2], omzet: dailyData[d] || 0 }))
 
-  // Peringkat PIC Berdasarkan Real Omzet
   const picRanking = pics.map((pic: any) => {
     const userSales = sales.filter(s => s.profiles?.id === pic.id)
     const omzet = userSales.reduce((sum, s) => sum + (Number(s.qty ?? 1) * Number(s.products?.price ?? 0)), 0)
@@ -134,20 +115,7 @@ export default function DashboardManager() {
     return { email: pic.email, omzet, percent, units, id: pic.id }
   }).sort((a, b) => b.omzet - a.omzet)
 
-  // Stock Health Analysis
-  const stockAnalysisData = inventory.map(product => {
-    const sold = sales.filter(s => s.product_id === product.id).reduce((sum, s) => sum + Number(s.qty || 1), 0)
-    return { name: product.name, stock: product.current_stock || 0, sold, health: product.current_stock > sold * 2 ? 'HEALTHY' : (product.current_stock > sold ? 'LOW' : 'CRITICAL') }
-  })
-
   const format = (n: number) => new Intl.NumberFormat('id-ID').format(n || 0)
-
-  const filteredSales = sales.filter(s => 
-    s.stores?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.profiles?.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.staff_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.imei?.includes(searchQuery)
-  )
 
   const exportToExcel = () => {
     const exportRows = filteredSales.map(s => ({
@@ -168,6 +136,18 @@ export default function DashboardManager() {
     saveAs(new Blob([buf]), `NTT_Sales_Report_${startDate}_to_${endDate}.xlsx`)
   }
 
+  const filteredSales = sales.filter(s => 
+    s.stores?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.profiles?.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.staff_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.imei?.includes(searchQuery)
+  )
+
+  const stockAnalysisData = inventory.map(product => {
+    const sold = sales.filter(s => s.product_id === product.id).reduce((sum, s) => sum + Number(s.qty || 1), 0)
+    return { name: product.name, stock: product.current_stock || 0, sold, health: product.current_stock > sold * 2 ? 'HEALTHY' : (product.current_stock > sold ? 'LOW' : 'CRITICAL') }
+  })
+
   return (
     <div className="min-h-screen bg-[#0b1326] font-manrope text-[#dae2fd] pb-32">
       <header className="fixed top-0 w-full z-50 flex justify-between items-center px-6 h-24 bg-[#0b1326]/70 backdrop-blur-xl border-b border-white/5">
@@ -175,7 +155,7 @@ export default function DashboardManager() {
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#4e74ff] to-[#2e5bff] border-2 border-white/10 flex items-center justify-center shadow-lg">
              <span className="material-icons text-white">analytics</span>
           </div>
-          <span className="text-xl font-black text-white uppercase italic">DASHBOARD NUBIA AREA NTT</span>
+          <span className="text-xl font-black text-white uppercase italic">NTT COMMAND CENTER</span>
         </div>
         <div className="flex items-center gap-4 text-xs font-bold uppercase tracking-widest">
           <div><p className="opacity-40 mb-1">Start</p><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="bg-[#131b2e] border border-white/10 text-white rounded-xl px-4 py-2 outline-none focus:border-[#2e5bff]" /></div>
@@ -185,7 +165,6 @@ export default function DashboardManager() {
 
       <main className="pt-32 px-6 space-y-8 max-w-7xl mx-auto">
         
-        {/* VIEW: DASHBOARD */}
         {activeTab === 'dashboard' && (
           <>
             <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
@@ -193,8 +172,8 @@ export default function DashboardManager() {
                 { label: 'Units Sold', val: format(totalUnitSold), icon: 'shopping_basket', color: 'text-[#2e5bff]' },
                 { label: 'Sales Revenue', val: `Rp ${format(totalOmzetSold)}`, icon: 'payments', color: 'text-emerald-400' },
                 { label: 'Total Sell In', val: `${format(totalSellInUnits)} units`, sub: `Rp ${format(totalSellInValue)}`, icon: 'local_shipping', color: 'text-blue-400' },
-                { label: 'Warehouse Stock', val: `${format(totalStockUnits)} units`, icon: 'inventory_2', color: 'text-blue-400' },
-                { label: 'Stock Valuation', val: `Rp ${format(totalStockValue)}`, icon: 'account_balance', color: 'text-emerald-400' }
+                { label: 'Warehouse Stock', val: `${format(inventory.reduce((sum, p) => sum + Number(p.current_stock || 0), 0))} units`, icon: 'inventory_2', color: 'text-blue-400' },
+                { label: 'Stock Valuation', val: `Rp ${format(inventory.reduce((sum, p) => sum + (Number(p.current_stock || 0) * Number(p.price || 0)), 0))}`, icon: 'account_balance', color: 'text-emerald-400' }
               ].map((m, i) => (
                 <div key={i} className="bg-[#131b2e] p-6 rounded-[2.5rem] border border-white/5 shadow-xl group hover:border-[#2e5bff]/30 transition-all">
                   <p className="text-[#8c9bbd] text-[10px] font-bold uppercase tracking-widest mb-4">{m.label}</p>
@@ -238,8 +217,7 @@ export default function DashboardManager() {
             </div>
           </>
         )}
-
-        {/* VIEW: REPORTS */}
+        
         {activeTab === 'reports' && (
           <div className="space-y-6">
             <div className="flex flex-col md:flex-row justify-between items-center gap-6">
@@ -292,7 +270,6 @@ export default function DashboardManager() {
           </div>
         )}
 
-        {/* VIEW: ANALYTICS */}
         {activeTab === 'analytics' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
              <div className="bg-[#131b2e] p-8 rounded-[2.5rem] border border-white/5 shadow-2xl">
