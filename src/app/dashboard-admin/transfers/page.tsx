@@ -170,11 +170,11 @@ export default function WarehouseTransferPage() {
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
            <div className="space-y-1">
              <h1 className="text-4xl font-black text-white uppercase italic tracking-tight">Stock Transfer</h1>
-             <p className="text-[#8c9bbd] text-sm font-medium uppercase tracking-widest">Execute secure inter-warehouse asset movements.</p>
+             <p className="text-[#8c9bbd] text-sm font-medium uppercase tracking-widest">Proses Distribusi Antar Gudang</p>
            </div>
            <div className="flex gap-4">
               <span className="px-4 py-2 bg-[#2e5bff]/10 border border-[#2e5bff]/20 text-[#2e5bff] rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                 <span className="w-2 h-2 bg-[#2e5bff] rounded-full animate-pulse"></span> Transfer Protocol Active
+                 <span className="w-2 h-2 bg-[#2e5bff] rounded-full animate-pulse"></span> Transfer Antar Gudang Aktif
               </span>
            </div>
         </header>
@@ -186,12 +186,12 @@ export default function WarehouseTransferPage() {
                     <div className="w-12 h-12 rounded-2xl bg-[#2e5bff]/10 flex items-center justify-center text-[#2e5bff]">
                       <span className="material-icons">swap_horiz</span>
                     </div>
-                    <h3 className="text-xl font-black text-white uppercase">Transfer Routing</h3>
+                    <h3 className="text-xl font-black text-white uppercase">Jalur Transfer</h3>
                  </div>
 
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-2">
-                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd] ml-1">Source Node (From)</label>
+                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd] ml-1">Gudang Asal (From)</label>
                        <select 
                          value={selection.sourceId}
                          onChange={(e) => setSelection({...selection, sourceId: e.target.value, items: []})}
@@ -200,10 +200,10 @@ export default function WarehouseTransferPage() {
                           <option value="">Select Source Warehouse</option>
                           {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                        </select>
-                       <p className="text-[9px] text-[#8c9bbd]/40 italic ml-1">*Changing source will clear current queue.</p>
+                       <p className="text-[9px] text-[#8c9bbd]/40 italic ml-1">*Mengganti gudang asal akan menghapus seluruh antrian transfer.</p>
                     </div>
                     <div className="space-y-2">
-                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd] ml-1">Destination Node (To)</label>
+                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd] ml-1">Gudang Tujuan (To)</label>
                        <select 
                          value={selection.destinationId}
                          onChange={(e) => setSelection({...selection, destinationId: e.target.value})}
@@ -221,7 +221,7 @@ export default function WarehouseTransferPage() {
                     <div className="w-12 h-12 rounded-2xl bg-[#4edea3]/10 flex items-center justify-center text-[#4edea3]">
                       <span className="material-icons">qr_code_scanner</span>
                     </div>
-                    <h3 className="text-xl font-black text-white uppercase">IMEI Acquisition</h3>
+                    <h3 className="text-xl font-black text-white uppercase">Input Atau Scan IMEI 1</h3>
                  </div>
 
                  {isScanning && (
@@ -238,10 +238,10 @@ export default function WarehouseTransferPage() {
 
                  <div className="flex gap-4">
                     <div className="flex-1 space-y-2">
-                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd] ml-1">Manual Entry Identifier</label>
+                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd] ml-1">Input Manual</label>
                        <input 
                          type="text" 
-                         placeholder="Enter Serial/IMEI..."
+                         placeholder="Scan atau Input IMEI 1..."
                          value={manualImei}
                          onChange={(e) => setManualImei(e.target.value)}
                          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), validateAndAddImei(manualImei))}
@@ -264,12 +264,12 @@ export default function WarehouseTransferPage() {
                    disabled={!manualImei || loading}
                    className="w-full py-4 bg-[#2e5bff]/10 border border-[#2e5bff]/20 text-[#2e5bff] rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 disabled:opacity-30 transition-all hover:bg-[#2e5bff] hover:text-white"
                  >
-                   Verify and Queue Asset
+                   Verifikasi & Tambahkan ke Antrian
                  </button>
               </section>
 
               <section className="space-y-6">
-                 <h3 className="text-xl font-bold text-white uppercase tracking-tight ml-2">Manifest Queue</h3>
+                 <h3 className="text-xl font-bold text-white uppercase tracking-tight ml-2">List Transfer Stock</h3>
                  <div className="space-y-4">
                     {selection.items.length === 0 ? (
                       <div className="p-16 border-2 border-dashed border-white/5 rounded-[2.5rem] flex flex-col items-center justify-center gap-4 opacity-20">
@@ -301,22 +301,22 @@ export default function WarehouseTransferPage() {
            <div className="space-y-6">
               <div className="bg-[#131b2e] p-10 rounded-[3rem] border border-white/5 shadow-2xl sticky top-28 space-y-10">
                  <div className="space-y-2">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8c9bbd] mb-4 text-center">Transfer Intelligence</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8c9bbd] mb-4 text-center">Informasi Transfer</p>
                     <div className="flex justify-between items-end bg-[#0b1326] p-8 rounded-[2rem] border border-white/5 shadow-inner">
-                       <span className="text-xs font-bold text-[#8c9bbd] uppercase">Density</span>
+                       <span className="text-xs font-bold text-[#8c9bbd] uppercase">Jumlah Item</span>
                        <span className="text-7xl font-black text-[#4edea3] tracking-tighter">{selection.items.length.toString().padStart(2, '0')}</span>
                     </div>
                  </div>
 
                  <div className="space-y-6 pt-6 border-t border-white/5">
                     <div className="flex justify-between items-center px-2">
-                       <span className="text-[10px] font-bold text-[#8c9bbd] uppercase tracking-widest">Origin</span>
+                       <span className="text-[10px] font-bold text-[#8c9bbd] uppercase tracking-widest">Gudang Asal</span>
                        <span className="text-xs font-black text-white truncate max-w-[120px] text-right">
                           {warehouses.find(w => w.id === selection.sourceId)?.name || 'Not Selected'}
                        </span>
                     </div>
                     <div className="flex justify-between items-center px-2">
-                       <span className="text-[10px] font-bold text-[#8c9bbd] uppercase tracking-widest">Target</span>
+                       <span className="text-[10px] font-bold text-[#8c9bbd] uppercase tracking-widest">Gudang Tujuan</span>
                        <span className="text-xs font-black text-white truncate max-w-[120px] text-right text-[#2e5bff]">
                           {warehouses.find(w => w.id === selection.destinationId)?.name || 'Not Selected'}
                        </span>
@@ -333,13 +333,13 @@ export default function WarehouseTransferPage() {
                         <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                       ) : (
                         <>
-                           <span className="uppercase tracking-[0.2em]">Commit Transfer</span>
+                           <span className="uppercase tracking-[0.2em]">Konfirmasi Transfer</span>
                            <span className="material-icons group-hover:translate-x-1 transition-transform">local_shipping</span>
                         </>
                       )}
                     </button>
                     <p className="text-[9px] text-center text-[#8c9bbd]/50 leading-relaxed px-4 italic">
-                       Finalizing will atomically update digital asset location in the central ledger.
+                       Setelah dikonfirmasi, lokasi stok akan langsung diperbarui di Database/ Legder Stock.
                     </p>
                  </div>
               </div>
