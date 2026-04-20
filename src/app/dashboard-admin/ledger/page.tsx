@@ -9,7 +9,6 @@ export default function InventoryLedger() {
   const [transactions, setTransactions] = useState<any[]>([])
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState('ALL')
-  // NEW: Date Range States
   const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0])
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0])
   const [loading, setLoading] = useState(true)
@@ -48,7 +47,6 @@ export default function InventoryLedger() {
     }
   }
 
-  // UPDATED: Fully Functional Filter Logic
   const filteredData = transactions.filter(t => {
     const productName = t.products?.name || ''
     const destination = t.source_destination || ''
@@ -56,13 +54,13 @@ export default function InventoryLedger() {
                           destination.toLowerCase().includes(search.toLowerCase())
     const matchesType = filterType === 'ALL' || t.type === filterType
     
-    // NEW: Date Range Filtering
     const transactionDate = new Date(t.created_at).toISOString().split('T')[0]
     const matchesDate = transactionDate >= startDate && transactionDate <= endDate
 
     return matchesSearch && matchesType && matchesDate
   })
 
+  // FIXED: Logic to export 1 row per IMEI
   const exportToExcel = () => {
     if (filteredData.length === 0) {
       alert('No data to export for current filters.')
@@ -70,27 +68,46 @@ export default function InventoryLedger() {
     }
 
     try {
-      const exportRows = filteredData.map(t => {
-        const item = t.inventory_items?.[0]
-        const locationName = item?.warehouses?.name || 'N/A'
+      const exportRows: any[] = []
+      
+      filteredData.forEach(t => {
+        const items = t.inventory_items || []
         
-        return {
-          'Tanggal': new Date(t.created_at).toLocaleString(),
-          'Tipe': t.type.replace('_', ' '),
-          'Produk': t.products?.name || '-',
-          'IMEI / Serial': t.inventory_items?.map((i: any) => i.imei).join(', ') || 'Batch',
-          'Quantity': t.quantity,
-          'Tujuan/Sumber': t.source_destination || '-',
-          'Lokasi Gudang': locationName,
-          'Status Saat Ini': item?.status || 'COMPLETED'
+        if (items.length > 0) {
+          // Create a dedicated row for each individual IMEI in the transaction
+          items.forEach((item: any) => {
+            const locationName = item.warehouses?.name || 'N/A'
+            exportRows.push({
+              'Tanggal': new Date(t.created_at).toLocaleString(),
+              'Tipe': t.type.replace('_', ' '),
+              'Produk': t.products?.name || '-',
+              'IMEI / Serial': item.imei || '-',
+              'Quantity': 1, // Each row represents 1 unit
+              'Tujuan/Sumber': t.source_destination || '-',
+              'Lokasi Gudang': locationName,
+              'Status Saat Ini': item.status || 'COMPLETED'
+            })
+          })
+        } else {
+          // Fallback for batch transactions without individual item links
+          exportRows.push({
+            'Tanggal': new Date(t.created_at).toLocaleString(),
+            'Tipe': t.type.replace('_', ' '),
+            'Produk': t.products?.name || '-',
+            'IMEI / Serial': 'Batch Entry',
+            'Quantity': t.quantity,
+            'Tujuan/Sumber': t.source_destination || '-',
+            'Lokasi Gudang': 'N/A',
+            'Status Saat Ini': 'COMPLETED'
+          })
         }
       })
 
       const ws = XLSX.utils.json_to_sheet(exportRows)
       const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, 'Inventory_Ledger')
+      XLSX.utils.book_append_sheet(wb, ws, 'Detailed_Inventory_Ledger')
       const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
-      saveAs(new Blob([buf], { type: 'application/octet-stream' }), `Inventory_Ledger_Location_Sync_\${new Date().getTime()}.xlsx`)
+      saveAs(new Blob([buf], { type: 'application/octet-stream' }), `Inventory_Detailed_Export_${new Date().getTime()}.xlsx`)
     } catch (err) {
       console.error('Export Error:', err)
       alert('Failed to generate Excel file.')
@@ -102,20 +119,19 @@ export default function InventoryLedger() {
       <main className="lg:pl-64 pt-20 p-8 space-y-8">
         <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
           <div className="space-y-1">
-            <h1 className="text-4xl font-black tracking-tight text-white uppercase italic">Inventory Database (库存管理数据库)</h1>
-            <p className="text-[#8c9bbd] text-sm font-medium uppercase tracking-[0.2em]">Catatan audit rinci dari setiap pergerakan aset/stock</p>
+            <h1 className="text-4xl font-black tracking-tight text-white uppercase italic">Inventory Database</h1>
+            <p className="text-[#8c9bbd] text-sm font-medium uppercase tracking-[0.2em]">Detailed audit trail (1 Row per IMEI Export)</p>
           </div>
           <button 
             onClick={exportToExcel}
             className="px-6 py-3 bg-[#2e5bff] hover:bg-[#4e74ff] text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2"
           >
-            <span className="material-icons text-sm">download</span> Export Excel
+            <span className="material-icons text-sm">download</span> Export Detailed Excel
           </button>
         </header>
 
-        {/* UPDATED: Functional Filters */}
+        {/* Filters */}
         <section className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-[#131b2e]/40 p-6 rounded-[2.5rem] border border-white/5 shadow-xl">
-           {/* Search Input */}
            <div className="md:col-span-1 relative group">
               <span className="material-icons absolute left-5 top-1/2 -translate-y-1/2 text-[#8c9bbd] group-focus-within:text-[#2e5bff] transition-colors">search</span>
               <input 
@@ -127,7 +143,6 @@ export default function InventoryLedger() {
               />
            </div>
 
-           {/* Asset Type Selector */}
            <div>
               <select 
                 value={filterType}
@@ -140,7 +155,6 @@ export default function InventoryLedger() {
               </select>
            </div>
 
-           {/* Date Range Filters */}
            <div className="grid grid-cols-2 gap-3 md:col-span-2">
               <div className="relative group">
                 <input 
@@ -199,7 +213,7 @@ export default function InventoryLedger() {
                                 <p className="text-[10px] font-medium text-[#8c9bbd] uppercase">{new Date(t.created_at).toLocaleTimeString()}</p>
                               </td>
                               <td className="px-10 py-8">
-                                <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border \${t.type === 'STOCK_IN' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
+                                <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${t.type === 'STOCK_IN' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
                                     {t.type.replace('_', ' ')}
                                 </span>
                               </td>
@@ -208,7 +222,7 @@ export default function InventoryLedger() {
                                 <p className="text-[10px] font-mono text-[#8c9bbd] uppercase tracking-tighter">ID: {t.id.substring(0, 12).toUpperCase()}</p>
                               </td>
                               <td className="px-10 py-8">
-                                <p className={`text-lg font-black \${t.type === 'STOCK_IN' ? 'text-emerald-400' : 'text-blue-400'}`}>
+                                <p className={`text-lg font-black ${t.type === 'STOCK_IN' ? 'text-emerald-400' : 'text-blue-400'}`}>
                                     {t.type === 'STOCK_IN' ? '+' : '-'}{t.quantity}
                                 </p>
                               </td>
