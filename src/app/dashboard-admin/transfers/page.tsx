@@ -1,4 +1,6 @@
+
 'use client'
+
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { Html5Qrcode } from 'html5-qrcode'
@@ -27,13 +29,13 @@ export default function WarehouseTransferPage() {
   const [isScanning, setIsScanning] = useState(false)
   const [manualImei, setManualImei] = useState('')
   const [loading, setLoading] = useState(false)
-  const scannerRef = useRef<Html5Qrcode | null>(null)
+  const html5QrCodeRef = useRef<Html5Qrcode | null>(null)
 
   useEffect(() => {
     fetchWarehouses()
     return () => {
-      if (scannerRef.current) {
-        scannerRef.current.stop().catch(console.error)
+      if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+        html5QrCodeRef.current.stop().catch(console.error)
       }
     }
   }, [])
@@ -51,10 +53,12 @@ export default function WarehouseTransferPage() {
       alert('Mohon pilih Gudang Asal terlebih dahulu.')
       return
     }
+
     if (selection.items.find(i => i.imei === cleanImei)) {
       alert('IMEI sudah ada di daftar manifest.')
       return
     }
+
     setLoading(true)
     try {
       const { data, error } = await supabase
@@ -64,6 +68,7 @@ export default function WarehouseTransferPage() {
         .eq('location_id', selection.sourceId)
         .eq('status', 'IN_WAREHOUSE')
         .single()
+
       if (data) {
         setSelection(prev => ({
           ...prev,
@@ -90,7 +95,7 @@ export default function WarehouseTransferPage() {
     setTimeout(async () => {
       try {
         const html5QrCode = new Html5Qrcode("reader");
-        scannerRef.current = html5QrCode;
+        html5QrCodeRef.current = html5QrCode;
         const config = { fps: 20, qrbox: { width: 300, height: 120 } };
         
         await html5QrCode.start(
@@ -107,8 +112,8 @@ export default function WarehouseTransferPage() {
   }
 
   const stopScanner = async () => {
-    if (scannerRef.current) {
-      await scannerRef.current.stop();
+    if (html5QrCodeRef.current) {
+      await html5QrCodeRef.current.stop();
       setIsScanning(false);
     } else {
       setIsScanning(false);
@@ -121,6 +126,7 @@ export default function WarehouseTransferPage() {
       alert('Mohon lengkapi data gudang dan scan minimal 1 item.')
       return
     }
+
     if (selection.sourceId === selection.destinationId) {
       alert('Gudang asal dan tujuan tidak boleh sama.')
       return
@@ -130,13 +136,16 @@ export default function WarehouseTransferPage() {
     try {
       const sourceName = warehouses.find(w => w.id === selection.sourceId)?.name
       const destName = warehouses.find(w => w.id === selection.destinationId)?.name
+
       const { data: tx, error: txError } = await supabase.from('inventory_transactions').insert({
         type: 'STOCK_OUT', 
         quantity: selection.items.length,
         source_destination: destName,
         notes: `Inter-warehouse transfer from ${sourceName} to ${destName}`
       }).select().single()
+
       if (txError) throw txError
+
       const itemIds = selection.items.map(i => i.id)
       const { error: updateError } = await supabase.from('inventory_items')
         .update({ 
@@ -146,6 +155,7 @@ export default function WarehouseTransferPage() {
         .in('id', itemIds)
       
       if (updateError) throw updateError
+
       alert(`Berhasil! ${selection.items.length} unit telah dipindahkan ke ${destName}.`)
       setSelection({ ...selection, items: [] })
     } catch (error: any) {
@@ -157,10 +167,10 @@ export default function WarehouseTransferPage() {
 
   return (
     <div className="min-h-screen bg-[#0b1326] text-[#dae2fd] font-manrope">
-      <main className="lg:pl-64 pt-20 p-4 md:p-8 max-w-7xl mx-auto space-y-6 md:space-y-10 pb-32">
+      <main className="lg:pl-64 pt-20 p-8 max-w-7xl mx-auto space-y-10 pb-32">
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
            <div className="space-y-1">
-             <h1 className="text-3xl md:text-4xl font-black text-white uppercase italic tracking-tight">Stock Transfer</h1>
+             <h1 className="text-4xl font-black text-white uppercase italic tracking-tight">Stock Transfer</h1>
              <p className="text-[#8c9bbd] text-sm font-medium uppercase tracking-widest">Execute secure inter-warehouse asset movements.</p>
            </div>
            <div className="flex gap-4">
@@ -171,22 +181,22 @@ export default function WarehouseTransferPage() {
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-           <div className="lg:col-span-2 space-y-6 md:space-y-8">
-              {/* Node Routing */}
-              <section className="bg-[#131b2e]/60 p-6 md:p-10 rounded-[2rem] md:rounded-[2.5rem] border border-white/5 shadow-2xl space-y-6 md:space-y-8">
+           <div className="lg:col-span-2 space-y-8">
+              <section className="bg-[#131b2e]/60 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl space-y-8">
                  <div className="flex items-center gap-4 mb-2">
-                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-[#2e5bff]/10 flex items-center justify-center text-[#2e5bff]">
+                    <div className="w-12 h-12 rounded-2xl bg-[#2e5bff]/10 flex items-center justify-center text-[#2e5bff]">
                       <span className="material-icons">swap_horiz</span>
                     </div>
-                    <h3 className="text-lg md:text-xl font-black text-white uppercase">Transfer Routing</h3>
+                    <h3 className="text-xl font-black text-white uppercase">Transfer Routing</h3>
                  </div>
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-2">
                        <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd] ml-1">Source Node (From)</label>
                        <select 
                          value={selection.sourceId}
                          onChange={(e) => setSelection({...selection, sourceId: e.target.value, items: []})}
-                         className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-5 py-3 md:py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50 appearance-none transition-all"
+                         className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50 appearance-none transition-all"
                        >
                           <option value="">Select Source Warehouse</option>
                           {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
@@ -198,7 +208,7 @@ export default function WarehouseTransferPage() {
                        <select 
                          value={selection.destinationId}
                          onChange={(e) => setSelection({...selection, destinationId: e.target.value})}
-                         className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-5 py-3 md:py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50 appearance-none transition-all"
+                         className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50 appearance-none transition-all"
                        >
                           <option value="">Select Destination Warehouse</option>
                           {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
@@ -207,26 +217,27 @@ export default function WarehouseTransferPage() {
                  </div>
               </section>
 
-              {/* Acquisition Field */}
-              <section className="bg-[#131b2e]/60 p-6 md:p-10 rounded-[2rem] md:rounded-[2.5rem] border border-white/5 shadow-2xl space-y-6 md:space-y-8">
+              <section className="bg-[#131b2e]/60 p-10 rounded-[2.5rem] border border-white/5 shadow-2xl space-y-8">
                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-[#4edea3]/10 flex items-center justify-center text-[#4edea3]">
+                    <div className="w-12 h-12 rounded-2xl bg-[#4edea3]/10 flex items-center justify-center text-[#4edea3]">
                       <span className="material-icons">qr_code_scanner</span>
                     </div>
-                    <h3 className="text-lg md:text-xl font-black text-white uppercase">IMEI Acquisition</h3>
+                    <h3 className="text-xl font-black text-white uppercase">IMEI Acquisition</h3>
                  </div>
+
                  {isScanning && (
-                   <div className="relative mb-6 rounded-[1.5rem] md:rounded-[2rem] overflow-hidden border-2 border-[#2e5bff]/30 shadow-2xl bg-black aspect-video">
+                   <div className="relative mb-8 rounded-[2rem] overflow-hidden border-2 border-[#2e5bff]/30 shadow-2xl bg-black aspect-video">
                       <div id="reader" className="w-full h-full"></div>
                       <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                         <div className="w-[80%] md:w-[320px] h-[100px] md:h-[120px] border-4 border-[#4edea3] rounded-2xl relative shadow-[0_0_100px_rgba(0,0,0,0.8)]">
+                         <div className="w-[320px] h-[120px] border-4 border-[#4edea3] rounded-2xl relative shadow-[0_0_100px_rgba(0,0,0,0.8)]">
                             <div className="absolute top-1/2 left-0 w-full h-[1px] bg-[#4edea3] animate-pulse"></div>
                             <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-[#4edea3] text-[#0b1326] text-[10px] font-black px-4 py-1 rounded-full uppercase tracking-widest whitespace-nowrap">Focus Barcode</div>
                          </div>
                       </div>
                    </div>
                  )}
-                 <div className="flex flex-col md:flex-row gap-4">
+
+                 <div className="flex gap-4">
                     <div className="flex-1 space-y-2">
                        <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd] ml-1">Manual Entry Identifier</label>
                        <input 
@@ -235,14 +246,14 @@ export default function WarehouseTransferPage() {
                          value={manualImei}
                          onChange={(e) => setManualImei(e.target.value)}
                          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), validateAndAddImei(manualImei))}
-                         className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-5 py-3 md:py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50 transition-all"
+                         className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50 transition-all"
                        />
                     </div>
-                    <div className="md:pt-6 flex justify-center">
+                    <div className="pt-6">
                        <button 
                          type="button"
                          onClick={isScanning ? stopScanner : startScanner}
-                         className={`w-full md:w-14 h-12 md:h-14 rounded-2xl flex items-center justify-center transition-all ${isScanning ? 'bg-rose-500/20 text-rose-500 border border-rose-500/30' : 'bg-[#2e5bff]/10 text-[#2e5bff] border border-[#2e5bff]/20 hover:bg-[#2e5bff] hover:text-white shadow-lg'}`}
+                         className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${isScanning ? 'bg-rose-500/20 text-rose-500 border border-rose-500/30' : 'bg-[#2e5bff]/10 text-[#2e5bff] border border-[#2e5bff]/20 hover:bg-[#2e5bff] hover:text-white shadow-lg'}`}
                        >
                          <span className="material-icons">{isScanning ? 'close' : 'photo_camera'}</span>
                        </button>
@@ -252,30 +263,29 @@ export default function WarehouseTransferPage() {
                    type="button"
                    onClick={() => validateAndAddImei(manualImei)}
                    disabled={!manualImei || loading}
-                   className="w-full py-3 md:py-4 bg-[#2e5bff]/10 border border-[#2e5bff]/20 text-[#2e5bff] rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 disabled:opacity-30 transition-all hover:bg-[#2e5bff] hover:text-white"
+                   className="w-full py-4 bg-[#2e5bff]/10 border border-[#2e5bff]/20 text-[#2e5bff] rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 disabled:opacity-30 transition-all hover:bg-[#2e5bff] hover:text-white"
                  >
                    Verify and Queue Asset
                  </button>
               </section>
 
-              {/* List manifest */}
-              <section className="space-y-4 md:space-y-6">
-                 <h3 className="text-lg md:text-xl font-bold text-white uppercase tracking-tight ml-2">Manifest Queue</h3>
-                 <div className="space-y-3 md:space-y-4">
+              <section className="space-y-6">
+                 <h3 className="text-xl font-bold text-white uppercase tracking-tight ml-2">Manifest Queue</h3>
+                 <div className="space-y-4">
                     {selection.items.length === 0 ? (
-                      <div className="p-10 md:p-16 border-2 border-dashed border-white/5 rounded-[2rem] md:rounded-[2.5rem] flex flex-col items-center justify-center gap-4 opacity-20">
-                         <span className="material-icons text-4xl md:text-5xl">swap_horiz</span>
+                      <div className="p-16 border-2 border-dashed border-white/5 rounded-[2.5rem] flex flex-col items-center justify-center gap-4 opacity-20">
+                         <span className="material-icons text-5xl">swap_horiz</span>
                          <p className="text-xs font-black uppercase tracking-[0.3em]">No assets queued</p>
                       </div>
                     ) : (
                       selection.items.map((item, i) => (
-                        <div key={i} className="p-4 md:p-6 bg-[#131b2e]/60 border border-white/5 rounded-[1.5rem] md:rounded-[2.5rem] shadow-xl flex justify-between items-center group transition-all hover:border-[#2e5bff]/30">
-                           <div className="flex items-center gap-4 md:gap-6">
-                              <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-[#4edea3]/10 flex items-center justify-center text-[#4edea3]">
+                        <div key={i} className="p-6 bg-[#131b2e]/60 border border-white/5 rounded-[2.5rem] shadow-xl flex justify-between items-center group transition-all hover:border-[#2e5bff]/30">
+                           <div className="flex items-center gap-6">
+                              <div className="w-12 h-12 rounded-2xl bg-[#4edea3]/10 flex items-center justify-center text-[#4edea3]">
                                  <span className="material-icons">check_circle</span>
                               </div>
                               <div>
-                                 <h4 className="text-base md:text-lg font-black text-white">{item.productName}</h4>
+                                 <h4 className="text-lg font-black text-white">{item.productName}</h4>
                                  <p className="text-[10px] font-mono font-bold text-[#8c9bbd] uppercase tracking-tighter">IMEI: <span className="text-white">{item.imei}</span></p>
                               </div>
                            </div>
@@ -289,18 +299,17 @@ export default function WarehouseTransferPage() {
               </section>
            </div>
 
-           {/* Transfer Intelligence Sidebar */}
            <div className="space-y-6">
-              <div className="bg-[#131b2e] p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] border border-white/5 shadow-2xl lg:sticky lg:top-28 space-y-6 md:space-y-10">
+              <div className="bg-[#131b2e] p-10 rounded-[3rem] border border-white/5 shadow-2xl sticky top-28 space-y-10">
                  <div className="space-y-2">
                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8c9bbd] mb-4 text-center">Transfer Intelligence</p>
-                    <div className="flex justify-between items-end bg-[#0b1326] p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-white/5 shadow-inner">
+                    <div className="flex justify-between items-end bg-[#0b1326] p-8 rounded-[2rem] border border-white/5 shadow-inner">
                        <span className="text-xs font-bold text-[#8c9bbd] uppercase">Density</span>
-                       <span className="text-5xl md:text-7xl font-black text-[#4edea3] tracking-tighter">{selection.items.length.toString().padStart(2, '0')}</span>
+                       <span className="text-7xl font-black text-[#4edea3] tracking-tighter">{selection.items.length.toString().padStart(2, '0')}</span>
                     </div>
                  </div>
 
-                 <div className="space-y-4 md:space-y-6 pt-6 border-t border-white/5">
+                 <div className="space-y-6 pt-6 border-t border-white/5">
                     <div className="flex justify-between items-center px-2">
                        <span className="text-[10px] font-bold text-[#8c9bbd] uppercase tracking-widest">Origin</span>
                        <span className="text-xs font-black text-white truncate max-w-[120px] text-right">
@@ -319,7 +328,7 @@ export default function WarehouseTransferPage() {
                     <button 
                       onClick={commitTransfer}
                       disabled={loading || selection.items.length === 0 || !selection.sourceId || !selection.destinationId}
-                      className="w-full py-5 md:py-6 bg-gradient-to-br from-[#4e74ff] to-[#2e5bff] text-white rounded-[1.5rem] md:rounded-[2rem] font-black text-base md:text-lg shadow-2xl shadow-blue-500/40 active:scale-95 disabled:opacity-30 transition-all flex items-center justify-center gap-3 group"
+                      className="w-full py-6 bg-gradient-to-br from-[#4e74ff] to-[#2e5bff] text-white rounded-[2rem] font-black text-lg shadow-2xl shadow-blue-500/40 active:scale-95 disabled:opacity-30 transition-all flex items-center justify-center gap-3 group"
                     >
                       {loading ? (
                         <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
