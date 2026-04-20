@@ -118,8 +118,8 @@ export default function InventoryLedger() {
       <main className="lg:pl-64 pt-20 p-8 space-y-8">
         <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
           <div className="space-y-1">
-            <h1 className="text-4xl font-black tracking-tight text-white uppercase italic">Inventory Database</h1>
-            <p className="text-[#8c9bbd] text-sm font-medium uppercase tracking-[0.2em]">Detailed audit trail (1 Row per IMEI Export)</p>
+            <h1 className="text-4xl font-black tracking-tight text-white uppercase italic">Database Stock 库存看板</h1>
+            <p className="text-[#8c9bbd] text-sm font-medium uppercase tracking-[0.2em]">Historis & Detil Barang Masuk dan Keluar </p>
           </div>
           <button 
             onClick={exportToExcel}
@@ -134,7 +134,7 @@ export default function InventoryLedger() {
               <span className="material-icons absolute left-5 top-1/2 -translate-y-1/2 text-[#8c9bbd] group-focus-within:text-[#2e5bff] transition-colors">search</span>
               <input 
                 type="text" 
-                placeholder="Product or Node name..."
+                placeholder="Product atau Nama Gudang..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full bg-[#0b1326] border border-white/5 rounded-2xl py-4 pl-14 pr-6 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50 transition-all"
@@ -147,9 +147,9 @@ export default function InventoryLedger() {
                 onChange={(e) => setFilterType(e.target.value)}
                 className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50 appearance-none transition-all"
               >
-                 <option value="ALL">All Asset Types</option>
-                 <option value="STOCK_IN">Stock-In Entry</option>
-                 <option value="STOCK_OUT">Stock-Out Fulfillment</option>
+                 <option value="ALL">Semua Kategori Stok</option>
+                 <option value="STOCK_IN">Stock-Masuk</option>
+                 <option value="STOCK_OUT">Stock-Keluar</option>
               </select>
            </div>
 
@@ -189,7 +189,7 @@ export default function InventoryLedger() {
                        <th className="px-10 py-6">Type</th>
                        <th className="px-10 py-6">Product Details</th>
                        <th className="px-10 py-6">Quantity</th>
-                       <th className="px-10 py-6">Entity/Node</th>
+                       <th className="px-10 py-6">Suplier</th>
                        <th className="px-10 py-6 text-right">Status & Location</th>
                     </tr>
                  </thead>
@@ -225,7 +225,7 @@ export default function InventoryLedger() {
                               </td>
                               <td className="px-10 py-8">
                                 <p className="text-sm font-black text-white mb-1">{t.source_destination}</p>
-                                <p className="text-[10px] font-medium text-[#8c9bbd] uppercase tracking-widest italic">Warehouse Node</p>
+                                <p className="text-[10px] font-medium text-[#8c9bbd] uppercase tracking-widest italic">Warehouse</p>
                               </td>
                               <td className="px-10 py-8 text-right">
                                 <div className="space-y-1">
