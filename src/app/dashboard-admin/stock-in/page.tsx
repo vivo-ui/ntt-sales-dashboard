@@ -239,21 +239,21 @@ export default function StockInManualSupplierPage() {
       <main className="lg:pl-64 pt-20 p-6 max-w-7xl mx-auto space-y-10 pb-32">
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
            <div className="space-y-1">
-             <h1 className="text-4xl font-black text-white uppercase italic tracking-tight">Admin Stock-In</h1>
-             <p className="text-[#8c9bbd] text-sm font-medium uppercase tracking-widest">Register inbound shipments & export logs</p>
+             <h1 className="text-4xl font-black text-white uppercase italic tracking-tight">Penerimaan Barang</h1>
+             <p className="text-[#8c9bbd] text-sm font-medium uppercase tracking-widest">Pencatatan Penerimaan Barang Supplier</p>
            </div>
            <div className="flex flex-wrap gap-3">
               <button 
                 onClick={handleExportCurrentBatch}
                 className="px-6 py-2 bg-[#2e5bff]/10 border border-[#2e5bff]/20 text-[#2e5bff] rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-[#2e5bff] hover:text-white transition-all"
               >
-                 <span className="material-icons text-sm">download</span> Export Current Batch
+                 <span className="material-icons text-sm">download</span> Eksport Excel Batch Aktif
               </button>
               <button 
                 onClick={handleExportHistory}
                 className="px-6 py-2 bg-white/5 border border-white/10 text-white rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-white/10 transition-all"
               >
-                 <span className="material-icons text-sm">history</span> Export History
+                 <span className="material-icons text-sm">history</span> Export Riwayat Barang Masuk
               </button>
            </div>
         </header>
@@ -263,17 +263,17 @@ export default function StockInManualSupplierPage() {
               <section className="bg-[#131b2e]/60 p-8 rounded-[2.5rem] border border-white/5 shadow-2xl space-y-8">
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-2">
-                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd]">Supplier Source</label>
+                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd]">Sumber Supplier</label>
                        <input 
                          type="text" 
                          value={originInfo.supplierName}
                          onChange={(e) => setOriginInfo({...originInfo, supplierName: e.target.value})}
-                         className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50"
-                         placeholder="Enter supplier name..."
+                         className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-2 py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50"
+                         placeholder="Input nama supplier (ketik manual)..."
                        />
                     </div>
                     <div className="space-y-2">
-                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd]">Arrival Date</label>
+                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd]">Tanggal Barang Masuk</label>
                        <input 
                          type="date"
                          value={originInfo.deliveryDate}
@@ -294,7 +294,7 @@ export default function StockInManualSupplierPage() {
                          onChange={(e) => setCurrentEntry({...currentEntry, productId: e.target.value})}
                          className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none appearance-none"
                        >
-                          <option value="">-- Choose Product --</option>
+                          <option value="">-- Pilih Product --</option>
                           {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                        </select>
                     </div>
@@ -305,7 +305,7 @@ export default function StockInManualSupplierPage() {
                          onChange={(e) => setCurrentEntry({...currentEntry, warehouseId: e.target.value})}
                          className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none appearance-none"
                        >
-                          <option value="">-- Choose Warehouse --</option>
+                          <option value="">-- Pilih Gudang --</option>
                           {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                        </select>
                     </div>
@@ -313,7 +313,7 @@ export default function StockInManualSupplierPage() {
                  <div className="flex gap-4">
                     <input 
                       type="text" 
-                      placeholder="Type IMEI..."
+                      placeholder="Input atau Scan IMEI 1..."
                       value={currentEntry.imei}
                       onChange={(e) => setCurrentEntry({...currentEntry, imei: e.target.value})}
                       onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleManualAdd())}
@@ -323,14 +323,14 @@ export default function StockInManualSupplierPage() {
                        <span className="material-icons">{isScanning ? 'close' : 'photo_camera'}</span>
                     </button>
                  </div>
-                 <button onClick={handleManualAdd} className="w-full py-4 bg-[#2e5bff] text-white rounded-2xl font-black uppercase text-xs active:scale-95 transition-transform">Add to Manifest</button>
+                 <button onClick={handleManualAdd} className="w-full py-4 bg-[#2e5bff] text-white rounded-2xl font-black uppercase text-xs active:scale-95 transition-transform">Tambahkan ke Daftar</button>
               </section>
 
               <section className="space-y-4">
                  {activeBatch.length === 0 ? (
                     <div className="p-16 border-2 border-dashed border-white/5 rounded-[2.5rem] text-center opacity-30">
                        <span className="material-icons text-5xl mb-2">inventory_2</span>
-                       <p className="text-xs font-bold uppercase tracking-widest">No items in manifest</p>
+                       <p className="text-xs font-bold uppercase tracking-widest">Belum Ada Barang Ditambahkan</p>
                     </div>
                  ) : (
                     activeBatch.map((item, i) => (
@@ -369,7 +369,7 @@ export default function StockInManualSupplierPage() {
            <div className="space-y-6">
               <div className="bg-[#131b2e] p-8 rounded-[3rem] border border-white/5 shadow-2xl sticky top-28 space-y-8">
                  <div className="flex justify-between items-end bg-[#0b1326] p-6 rounded-[2rem]">
-                    <span className="text-xs font-bold text-[#8c9bbd] uppercase">Session Total</span>
+                    <span className="text-xs font-bold text-[#8c9bbd] uppercase">Total Saat Ini</span>
                     <span className="text-5xl font-black text-[#4edea3]">{activeBatch.reduce((sum, item) => sum + item.imeis.length, 0)}</span>
                  </div>
                  <button 
@@ -382,12 +382,12 @@ export default function StockInManualSupplierPage() {
                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                          <span>Syncing Ledger...</span>
                       </>
-                   ) : 'Commit to Ledger'}
+                   ) : 'Simpan ke Sistem Stok'}
                  </button>
                  <div className="bg-white/5 p-6 rounded-2xl border border-white/5">
-                    <p className="text-[9px] font-black text-[#8c9bbd] uppercase tracking-[0.2em] mb-3">Ledger Intelligence</p>
+                    <p className="text-[9px] font-black text-[#8c9bbd] uppercase tracking-[0.2em] mb-3">Informasi Sistem</p>
                     <p className="text-[11px] leading-relaxed text-[#dae2fd]/60 italic">
-                       Finalizing will register individual IMEIs into the central vault and increment product stock globally.
+                       Proses ini akan mendaftarkan setiap IMEI 1 ke  Database dan menambahkan stok secara otomatis..
                     </p>
                  </div>
               </div>
