@@ -145,10 +145,10 @@ export default function AdminOverview() {
 
         {/* Primary Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-           <div className="bg-[#131b2e] p-8 rounded-[2.5rem] border border-white/5 shadow-2xl relative overflow-hidden">
+           <div className="bg-[#131b2e] p-5 rounded-[2.5rem] border border-white/5 shadow-2xl relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-[#2e5bff]/5 blur-[60px] rounded-full -mr-10 -mt-10"></div>
-              <p className="text-[#8c9bbd] text-[10px] font-bold uppercase tracking-widest mb-6">Total Asset Valuation</p>
-              <h2 className="text-4xl font-black text-white mb-2">{formatCurrency(metrics.totalValue)}</h2>
+              <p className="text-[#8c9bbd] text-[8px] font-bold uppercase tracking-widest mb-8">TOTAL VALUE STOCK (berdasarkan harga SRP)</p>
+              <h2 className="text-2xl font-black text-white mb-1">{formatCurrency(metrics.totalValue)}</h2>
               <div className="flex items-center gap-2 text-[#4edea3] text-xs font-bold uppercase">
                  <span className="material-icons text-sm">trending_up</span> +12.4% vs last month
               </div>
@@ -170,10 +170,10 @@ export default function AdminOverview() {
 
         {/* DOS Analysis Section */}
         <section className="space-y-6">
-           <div className="flex justify-between items-end px-4">
+           <div className="flex justify-between items-end px-3">
               <div>
-                 <h3 className="text-2xl font-black text-white uppercase italic">Inventory Analysis</h3>
-                 <p className="text-[#8c9bbd] text-xs font-bold uppercase tracking-widest">Predictive Days of Stock (DOS) based on 30-day Sell-Out average</p>
+                 <h3 className="text-2xl font-black text-white uppercase italic">Analisis Persediaan Produk</h3>
+                 <p className="text-[#8c9bbd] text-xs font-bold uppercase tracking-widest">Estimasi jumlah hari stok akan bertahan berdasarkan rata-rata penjualan 30 hari terakhir</p>
               </div>
               <button onClick={fetchData} className="px-5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Refresh Audit</button>
            </div>
@@ -238,7 +238,7 @@ export default function AdminOverview() {
         {/* Lower Analytics Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
            <div className="lg:col-span-2 bg-[#131b2e] p-10 rounded-[3rem] border border-white/5 shadow-2xl">
-              <h3 className="text-xl font-black text-white uppercase italic mb-8">Stock Volume Activity</h3>
+              <h3 className="text-xl font-black text-white uppercase italic mb-8">Aktivitas Pergerakan Stok</h3>
               <div className="w-full h-[300px]">
                  <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={volumeChartData}>
@@ -261,7 +261,7 @@ export default function AdminOverview() {
               </div>
            </div>
            <div className="bg-[#131b2e] p-10 rounded-[3rem] border border-white/5 shadow-2xl flex flex-col justify-center items-center text-center space-y-6">
-              <h3 className="text-xl font-black text-white uppercase italic">Storage Capacity</h3>
+              <h3 className="text-xl font-black text-white uppercase italic">Kapasitas Penyimpanan</h3>
               <div className="relative w-48 h-48 flex items-center justify-center">
                  <svg className="w-full h-full transform -rotate-90">
                     <circle cx="96" cy="96" r="80" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-white/5" />
@@ -269,12 +269,12 @@ export default function AdminOverview() {
                  </svg>
                  <div className="absolute inset-0 flex flex-col items-center justify-center">
                     <span className="text-4xl font-black text-white">{metrics.storageOccupancy}%</span>
-                    <span className="text-[10px] font-bold text-[#8c9bbd] uppercase tracking-widest">Occupied</span>
+                    <span className="text-[10px] font-bold text-[#8c9bbd] uppercase tracking-widest">Terpakai</span>
                  </div>
               </div>
               <div className="space-y-1">
-                 <p className="text-sm font-bold text-white">Live Capacity Used</p>
-                 <p className="text-xs text-[#8c9bbd]">Based on current warehouse unit count</p>
+                 <p className="text-sm font-bold text-white">Kapasitas Terpakai Saat Ini</p>
+                 <p className="text-xs text-[#8c9bbd]">Berdasarkan jumlah unit yang tersedia di gudang saat ini</p>
               </div>
            </div>
         </div>
