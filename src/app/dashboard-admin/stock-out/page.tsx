@@ -1,3 +1,4 @@
+
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
@@ -31,13 +32,13 @@ export default function StockOutPage() {
   const [isScanning, setIsScanning] = useState(false)
   const [manualImei, setManualImei] = useState('')
   const [loading, setLoading] = useState(false)
-  const scannerRef = useRef<Html5Qrcode | null>(null)
+  const html5QrCodeRef = useRef<Html5Qrcode | null>(null)
 
   useEffect(() => {
     fetchInitialData()
     return () => {
-      if (scannerRef.current) {
-        scannerRef.current.stop().catch(console.error)
+      if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+        html5QrCodeRef.current.stop().catch(console.error)
       }
     }
   }, [])
@@ -51,7 +52,7 @@ export default function StockOutPage() {
       setStores(storesRes.data || [])
       setWarehouses(warehousesRes.data || [])
     } catch (err) {
-      console.error('Error fetching initial data:', err)
+      console.error('Error fetching data:', err)
     }
   }
 
@@ -95,12 +96,14 @@ export default function StockOutPage() {
   }
 
   const startScanner = async () => {
+    if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) return;
+    
     setIsScanning(true)
     setTimeout(async () => {
       try {
         const html5QrCode = new Html5Qrcode("reader");
-        scannerRef.current = html5QrCode;
-        const config = { fps: 20, qrbox: { width: 320, height: 120 } };
+        html5QrCodeRef.current = html5QrCode;
+        const config = { fps: 20, qrbox: { width: 300, height: 120 } };
         
         await html5QrCode.start(
           { facingMode: "environment" }, 
@@ -116,9 +119,15 @@ export default function StockOutPage() {
   }
 
   const stopScanner = async () => {
-    if (scannerRef.current) {
-      await scannerRef.current.stop();
-      setIsScanning(false);
+    if (html5QrCodeRef.current) {
+      try {
+        await html5QrCodeRef.current.stop();
+        html5QrCodeRef.current = null;
+        setIsScanning(false);
+      } catch (err) {
+        console.error(err);
+        setIsScanning(false);
+      }
     } else {
       setIsScanning(false);
     }
@@ -294,8 +303,8 @@ export default function StockOutPage() {
       <main className="lg:pl-64 pt-20 p-6 max-w-7xl mx-auto space-y-10 pb-32">
         <header className="flex justify-between items-center">
            <div className="space-y-1">
-             <h1 className="text-4xl font-black text-white uppercase italic tracking-tight">MANAJEMEN ORDERAN TOKO</h1>
-             <p className="text-[#8c9bbd] text-sm font-medium uppercase tracking-widest">Kelola dan Proses Orderan dari toko</p>
+             <h1 className="text-4xl font-black text-white uppercase italic tracking-tight">Order Fulfillment</h1>
+             <p className="text-[#8c9bbd] text-sm font-medium uppercase tracking-widest">Process store deployments</p>
            </div>
            <div className="flex gap-4">
               <button onClick={handlePrintInvoice} className="px-6 py-2 bg-white/5 border border-white/10 text-white rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-white/10 transition-all">
@@ -312,20 +321,20 @@ export default function StockOutPage() {
               <section className="bg-[#131b2e]/60 p-8 rounded-[2.5rem] border border-white/5 shadow-2xl space-y-8">
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-2">
-                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd]">PILIH TOKO</label>
+                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd]">Destination Node</label>
                        <select 
                          value={selection.storeId}
                          onChange={(e) => setSelection({...selection, storeId: e.target.value})}
                          className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none appearance-none"
                        >
-                          <option value="">Pilih Nama Toko</option>
+                          <option value="">Select Destination Store</option>
                           {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                        </select>
                     </div>
                     <div className="space-y-2">
-                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd]">Prioritas Pengiriman</label>
+                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd]">Priority</label>
                        <div className="flex p-1 bg-[#0b1326] rounded-2xl border border-white/5">
-                          {['STANDARD', 'EXPRESS', 'URGENT'].map(p => (
+                          {['STANDARD', 'EXPRESS', 'CRITICAL'].map(p => (
                             <button key={p} type="button" onClick={() => setSelection({...selection, priority: p})} className={`flex-1 py-3 text-[10px] font-black rounded-xl transition-all ${selection.priority === p ? 'bg-[#2e5bff] text-white' : 'text-[#8c9bbd]'}`}>
                               {p}
                             </button>
@@ -340,7 +349,7 @@ export default function StockOutPage() {
                     <div className="w-12 h-12 rounded-2xl bg-[#4edea3]/10 flex items-center justify-center text-[#4edea3]">
                       <span className="material-icons">qr_code_scanner</span>
                     </div>
-                    <h3 className="text-xl font-black text-white uppercase">KETIK ATAU SCAN IMEI 1</h3>
+                    <h3 className="text-xl font-black text-white uppercase">Guided Fulfillment Scan</h3>
                  </div>
 
                  {isScanning && (
@@ -358,7 +367,7 @@ export default function StockOutPage() {
                  <div className="flex gap-4">
                     <input 
                       type="text" 
-                      placeholder="Ketik Imei 1..."
+                      placeholder="Type serial number..."
                       value={manualImei}
                       onChange={(e) => setManualImei(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), validateAndAddImei(manualImei))}
@@ -368,7 +377,7 @@ export default function StockOutPage() {
                        <span className="material-icons">{isScanning ? 'close' : 'photo_camera'}</span>
                     </button>
                  </div>
-                 <button onClick={() => validateAndAddImei(manualImei)} className="w-full py-4 bg-[#2e5bff]/10 border border-[#2e5bff]/20 text-[#2e5bff] rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 hover:bg-[#2e5bff] hover:text-white">Verifikasi dan Proses</button>
+                 <button onClick={() => validateAndAddImei(manualImei)} className="w-full py-4 bg-[#2e5bff]/10 border border-[#2e5bff]/20 text-[#2e5bff] rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 hover:bg-[#2e5bff] hover:text-white">Verify and Queue</button>
               </section>
 
               <section className="space-y-4">
