@@ -37,8 +37,8 @@ export default function StockOutPage() {
   useEffect(() => {
     fetchInitialData()
     return () => {
-      if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
-        html5QrCodeRef.current.stop().catch(console.error)
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(console.error)
       }
     }
   }, [])
@@ -56,38 +56,44 @@ export default function StockOutPage() {
     }
   }
 
-  const validateAndAddImei = async (imei: string) => {
-    const cleanImei = imei.trim()
-    if (!cleanImei) return
-    
-    if (selection.items.find(i => i.imei === cleanImei)) {
-      alert('IMEI sudah ada di daftar manifest.')
-      return
-    }
+  const validateAndAddImeis = async (imeiInput: string) => {
+    const imeiList = imeiInput
+      .split(/[\n, ]+/)
+      .map(item => item.trim())
+      .filter(item => item !== '')
+
+    if (imeiList.length === 0) return
 
     setLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('inventory_items')
-        .select('*, products(name)')
-        .eq('imei', cleanImei)
-        .eq('status', 'IN_WAREHOUSE')
-        .single()
+      for (const imei of imeiList) {
+        if (selection.items.find(i => i.imei === imei)) {
+          console.warn(`IMEI ${imei} sudah ada di daftar manifest.`);
+          continue;
+        }
 
-      if (data) {
-        setSelection(prev => ({
-          ...prev,
-          items: [...prev.items, { 
-            id: data.id, 
-            product_id: data.product_id, 
-            productName: data.products.name, 
-            imei: cleanImei 
-          }]
-        }))
-        setManualImei('')
-      } else {
-        alert('Eror: IMEI tidak ditemukan di gudang atau sudah diproses.')
+        const { data, error } = await supabase
+          .from('inventory_items')
+          .select('*, products(name)')
+          .eq('imei', imei)
+          .eq('status', 'IN_WAREHOUSE')
+          .single()
+
+        if (data) {
+          setSelection(prev => ({
+            ...prev,
+            items: [...prev.items, { 
+              id: data.id, 
+              product_id: data.product_id, 
+              productName: data.products.name, 
+              imei: imei 
+            }]
+          }))
+        } else {
+          console.error(`Eror: IMEI ${imei} tidak ditemukan di gudang atau sudah diproses.`);
+        }
       }
+      setManualImei('')
     } catch (err) {
       console.error(err)
     } finally {
@@ -108,7 +114,7 @@ export default function StockOutPage() {
         await html5QrCode.start(
           { facingMode: "environment" }, 
           config, 
-          (decodedText) => validateAndAddImei(decodedText),
+          (decodedText) => validateAndAddImeis(decodedText),
           () => {}
         );
       } catch (err) {
@@ -138,7 +144,6 @@ export default function StockOutPage() {
       alert('Pilih toko dan scan barang terlebih dahulu.');
       return;
     }
-
     const selectedStore = stores.find(s => s.id === selection.storeId);
     const storeName = selectedStore?.name || 'Unknown Store';
     const storePic = selectedStore?.pic || 'Store Manager';
@@ -148,13 +153,10 @@ export default function StockOutPage() {
       address: 'Nusa Tenggara Timur',
       pic_name: 'Warehouse Admin'
     };
-
     const date = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
     const invoiceId = `NTT-${Math.floor(10000 + Math.random() * 90000)}`;
-
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
-
     const itemsHtml = selection.items.map((item, index) => `
       <tr style="border-bottom: 1px solid #eee;">
         <td style="padding: 10px; text-align: center;">${(index + 1).toString().padStart(2, '0')}</td>
@@ -163,7 +165,6 @@ export default function StockOutPage() {
         <td style="padding: 10px; text-align: center;">1</td>
       </tr>
     `).join('');
-
     printWindow.document.write(`
       <html>
         <head>
@@ -247,7 +248,6 @@ export default function StockOutPage() {
         'IMEI': item.imei,
         'Status': 'Draft Dispatch'
       }))
-
       const ws = XLSX.utils.json_to_sheet(exportRows)
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, ws, 'Stock_Out_Manifest')
@@ -275,7 +275,6 @@ export default function StockOutPage() {
         source_destination: storeName,
         notes: `Dispatch to ${storeName}, Priority: ${selection.priority}`
       }).select().single()
-
       if (txError) throw txError
       const itemIds = selection.items.map(i => i.id)
       await supabase.from('inventory_items').update({ status: 'SHIPPED', last_transaction_id: tx.id }).in('id', itemIds)
@@ -284,7 +283,6 @@ export default function StockOutPage() {
         acc[item.product_id] = (acc[item.product_id] || 0) + 1
         return acc
       }, {})
-
       for (const pid in productCounts) {
         const { data: prod } = await supabase.from('products').select('current_stock').eq('id', pid).single()
         await supabase.from('products').update({ current_stock: (prod?.current_stock || 0) - productCounts[pid] }).eq('id', pid)
@@ -315,13 +313,12 @@ export default function StockOutPage() {
               </button>
            </div>
         </header>
-
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
            <div className="lg:col-span-2 space-y-8">
               <section className="bg-[#131b2e]/60 p-8 rounded-[2.5rem] border border-white/5 shadow-2xl space-y-8">
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-2">
-                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd]">Pilih Toko</label>
+                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd]">PILIH TOKO</label>
                        <select 
                          value={selection.storeId}
                          onChange={(e) => setSelection({...selection, storeId: e.target.value})}
@@ -332,7 +329,7 @@ export default function StockOutPage() {
                        </select>
                     </div>
                     <div className="space-y-2">
-                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd]">Priority</label>
+                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd]">Prioritas Pengiriman</label>
                        <div className="flex p-1 bg-[#0b1326] rounded-2xl border border-white/5">
                           {['STANDARD', 'EXPRESS', 'URGENT'].map(p => (
                             <button key={p} type="button" onClick={() => setSelection({...selection, priority: p})} className={`flex-1 py-3 text-[10px] font-black rounded-xl transition-all ${selection.priority === p ? 'bg-[#2e5bff] text-white' : 'text-[#8c9bbd]'}`}>
@@ -343,7 +340,6 @@ export default function StockOutPage() {
                     </div>
                  </div>
               </section>
-
               <section className="bg-[#131b2e]/60 p-8 rounded-[2.5rem] border border-white/5 shadow-2xl space-y-8">
                  <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-2xl bg-[#4edea3]/10 flex items-center justify-center text-[#4edea3]">
@@ -351,7 +347,6 @@ export default function StockOutPage() {
                     </div>
                     <h3 className="text-xl font-black text-white uppercase">SCAN IMEI 1</h3>
                  </div>
-
                  {isScanning && (
                    <div className="relative mb-8 rounded-[2rem] overflow-hidden border-2 border-[#2e5bff]/30 shadow-2xl bg-black aspect-video">
                       <div id="reader" className="w-full h-full"></div>
@@ -363,23 +358,21 @@ export default function StockOutPage() {
                       </div>
                    </div>
                  )}
-
                  <div className="flex gap-4">
-                    <input 
-                      type="text" 
-                      placeholder="Ketik Imei 1..."
+                    <textarea 
+                      placeholder="Ketik atau Paste List IMEI 1 (Pisahkan dengan baris baru, koma, atau spasi)..."
                       value={manualImei}
                       onChange={(e) => setManualImei(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), validateAndAddImei(manualImei))}
-                      className="flex-1 bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none"
+                      className="flex-1 bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none min-h-[120px] resize-none"
                     />
-                    <button onClick={isScanning ? stopScanner : startScanner} className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${isScanning ? 'bg-rose-500/20 text-rose-500' : 'bg-[#2e5bff]/10 text-[#2e5bff] border border-[#2e5bff]/20 hover:bg-[#2e5bff] hover:text-white'}`}>
-                       <span className="material-icons">{isScanning ? 'close' : 'photo_camera'}</span>
-                    </button>
+                    <div className="flex flex-col gap-2">
+                       <button onClick={isScanning ? stopScanner : startScanner} className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${isScanning ? 'bg-rose-500/20 text-rose-500 border border-rose-500/30' : 'bg-[#2e5bff]/10 text-[#2e5bff] border border-[#2e5bff]/20 hover:bg-[#2e5bff] hover:text-white'}`}>
+                          <span className="material-icons">{isScanning ? 'close' : 'photo_camera'}</span>
+                       </button>
+                    </div>
                  </div>
-                 <button onClick={() => validateAndAddImei(manualImei)} className="w-full py-4 bg-[#2e5bff]/10 border border-[#2e5bff]/20 text-[#2e5bff] rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 hover:bg-[#2e5bff] hover:text-white">Verifikasi dan Antrikan</button>
+                 <button onClick={() => validateAndAddImeis(manualImei)} className="w-full py-4 bg-[#2e5bff]/10 border border-[#2e5bff]/20 text-[#2e5bff] rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 hover:bg-[#2e5bff] hover:text-white">Verifikasi dan Antrikan</button>
               </section>
-
               <section className="space-y-4">
                  {selection.items.map((item, i) => (
                     <div key={i} className="p-6 bg-[#131b2e]/60 border border-white/5 rounded-[2.5rem] flex justify-between items-center group transition-all hover:border-[#2e5bff]/30 shadow-xl">
@@ -397,7 +390,6 @@ export default function StockOutPage() {
                  ))}
               </section>
            </div>
-
            <div className="space-y-6">
               <div className="bg-[#131b2e] p-8 rounded-[3rem] border border-white/5 shadow-2xl sticky top-28 space-y-10">
                  <div className="flex justify-between items-end bg-[#0b1326] p-8 rounded-[2rem] border border-white/5 shadow-inner">
