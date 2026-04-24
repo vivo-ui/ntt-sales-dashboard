@@ -1,5 +1,4 @@
 'use client'
-
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import {
@@ -42,7 +41,6 @@ export default function DashboardManager() {
     try {
       const startRange = `${startDate}T00:00:00Z`
       const endRange = `${endDate}T23:59:59Z`
-
       const { data: picData } = await supabase.from('profiles').select('id, email, role').eq('role', 'pic')
       
       const { data: salesData } = await supabase.from('sales_reports')
@@ -54,10 +52,8 @@ export default function DashboardManager() {
         `)
         .gte('created_at', startRange)
         .lte('created_at', endRange)
-
       const { data: targetData } = await supabase.from('targets').select('*')
       const { data: productData } = await supabase.from('products').select('*')
-
       const { data: sellInData } = await supabase.from('inventory_transactions')
         .select(`
           quantity, product_id, created_at,
@@ -79,11 +75,15 @@ export default function DashboardManager() {
     }
   }
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    window.location.href = '/login'
+  }
+
   const totalUnitSold = sales.reduce((sum, s) => sum + Number(s.qty ?? 1), 0)
   const totalOmzetSold = sales.reduce((sum, s) => sum + (Number(s.qty ?? 1) * Number(s.products?.price ?? 0)), 0)
   const totalSellInUnits = sellIn.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
   const totalSellInValue = sellIn.reduce((sum, item) => sum + (Number(item.quantity || 0) * Number(item.products?.price || 0)), 0)
-
   const storeSales: { [key: string]: number } = {}
   sales.forEach(s => {
     const storeName = s.stores?.name || 'Unknown'
@@ -94,7 +94,6 @@ export default function DashboardManager() {
     name: store.length > 12 ? store.substring(0, 12) + '...' : store,
     omzet: storeSales[store]
   })).sort((a, b) => b.omzet - a.omzet)
-
   const dailyData: { [key: string]: number } = {}
   sales.forEach(s => {
     const dateStr = new Date(s.created_at).toISOString().split('T')[0]
@@ -104,7 +103,6 @@ export default function DashboardManager() {
     const d = new Date(startDate); d.setDate(d.getDate() + i); return d.toISOString().split('T')[0]
   })
   const trendChartData = dateLabels.map(d => ({ day: d.split('-')[2], omzet: dailyData[d] || 0 }))
-
   const picRanking = pics.map((pic: any) => {
     const userSales = sales.filter(s => s.profiles?.id === pic.id)
     const omzet = userSales.reduce((sum, s) => sum + (Number(s.qty ?? 1) * Number(s.products?.price ?? 0)), 0)
@@ -114,9 +112,7 @@ export default function DashboardManager() {
     const percent = targetUnit > 0 ? Math.round((units / targetUnit) * 100) : 0
     return { email: pic.email, omzet, percent, units, id: pic.id }
   }).sort((a, b) => b.omzet - a.omzet)
-
   const format = (n: number) => new Intl.NumberFormat('id-ID').format(n || 0)
-
   const exportToExcel = () => {
     const exportRows = filteredSales.map(s => ({
       Date: new Date(s.created_at).toLocaleString(),
@@ -135,19 +131,16 @@ export default function DashboardManager() {
     const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
     saveAs(new Blob([buf]), `NTT_Sales_Report_${startDate}_to_${endDate}.xlsx`)
   }
-
   const filteredSales = sales.filter(s => 
     s.stores?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.profiles?.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.staff_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.imei?.includes(searchQuery)
   )
-
   const stockAnalysisData = inventory.map(product => {
     const sold = sales.filter(s => s.product_id === product.id).reduce((sum, s) => sum + Number(s.qty || 1), 0)
     return { name: product.name, stock: product.current_stock || 0, sold, health: product.current_stock > sold * 2 ? 'HEALTHY' : (product.current_stock > sold ? 'LOW' : 'CRITICAL') }
   })
-
   return (
     <div className="min-h-screen bg-[#0b1326] font-manrope text-[#dae2fd] pb-32">
       <header className="fixed top-0 w-full z-50 flex justify-between items-center px-6 h-24 bg-[#0b1326]/70 backdrop-blur-xl border-b border-white/5">
@@ -162,7 +155,6 @@ export default function DashboardManager() {
           <div><p className="opacity-40 mb-1">End</p><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="bg-[#131b2e] border border-white/10 text-white rounded-xl px-4 py-2 outline-none focus:border-[#2e5bff]" /></div>
         </div>
       </header>
-
       <main className="pt-32 px-6 space-y-8 max-w-7xl mx-auto">
         
         {activeTab === 'dashboard' && (
@@ -183,7 +175,6 @@ export default function DashboardManager() {
                 </div>
               ))}
             </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2 bg-[#131b2e] p-8 rounded-[2.5rem] border border-white/5 shadow-2xl relative overflow-hidden">
                 <h3 className="text-white font-black text-xl italic uppercase mb-8">Daily Sales Trend</h3>
@@ -269,7 +260,6 @@ export default function DashboardManager() {
             </div>
           </div>
         )}
-
         {activeTab === 'analytics' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
              <div className="bg-[#131b2e] p-8 rounded-[2.5rem] border border-white/5 shadow-2xl">
@@ -316,7 +306,6 @@ export default function DashboardManager() {
           </div>
         )}
       </main>
-
       <nav className="fixed bottom-0 w-full h-24 bg-[#131b2e]/80 backdrop-blur-2xl border-t border-white/5 flex justify-around items-center px-10 pb-6 z-50">
         {[
           { id: 'dashboard', label: 'Command', icon: 'grid_view' },
@@ -332,6 +321,13 @@ export default function DashboardManager() {
             <span className="text-[10px] font-black uppercase tracking-widest">{tab.label}</span>
           </button>
         ))}
+        <button 
+          onClick={handleLogout}
+          className="flex flex-col items-center justify-center text-red-400 hover:text-red-300 transition-all"
+        >
+          <span className="material-icons text-2xl mb-1">logout</span>
+          <span className="text-[10px] font-black uppercase tracking-widest">Logout</span>
+        </button>
       </nav>
       {loading && (
         <div className="fixed inset-0 bg-[#0b1326]/60 backdrop-blur-md flex items-center justify-center z-[100]">
