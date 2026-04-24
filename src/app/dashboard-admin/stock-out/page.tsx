@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
@@ -37,8 +36,8 @@ export default function StockOutPage() {
   useEffect(() => {
     fetchInitialData()
     return () => {
-      if (scannerRef.current) {
-        scannerRef.current.stop().catch(console.error)
+      if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+        html5QrCodeRef.current.stop().catch(console.error)
       }
     }
   }, [])
@@ -52,7 +51,7 @@ export default function StockOutPage() {
       setStores(storesRes.data || [])
       setWarehouses(warehousesRes.data || [])
     } catch (err) {
-      console.error('Error fetching data:', err)
+      console.error('Error fetching initial data:', err)
     }
   }
 
@@ -68,7 +67,6 @@ export default function StockOutPage() {
     try {
       for (const imei of imeiList) {
         if (selection.items.find(i => i.imei === imei)) {
-          console.warn(`IMEI ${imei} sudah ada di daftar manifest.`);
           continue;
         }
 
@@ -89,8 +87,6 @@ export default function StockOutPage() {
               imei: imei 
             }]
           }))
-        } else {
-          console.error(`Eror: IMEI ${imei} tidak ditemukan di gudang atau sudah diproses.`);
         }
       }
       setManualImei('')
@@ -144,6 +140,7 @@ export default function StockOutPage() {
       alert('Pilih toko dan scan barang terlebih dahulu.');
       return;
     }
+
     const selectedStore = stores.find(s => s.id === selection.storeId);
     const storeName = selectedStore?.name || 'Unknown Store';
     const storePic = selectedStore?.pic || 'Store Manager';
@@ -153,10 +150,13 @@ export default function StockOutPage() {
       address: 'Nusa Tenggara Timur',
       pic_name: 'Warehouse Admin'
     };
+
     const date = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
     const invoiceId = `NTT-${Math.floor(10000 + Math.random() * 90000)}`;
+
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
+
     const itemsHtml = selection.items.map((item, index) => `
       <tr style="border-bottom: 1px solid #eee;">
         <td style="padding: 10px; text-align: center;">${(index + 1).toString().padStart(2, '0')}</td>
@@ -165,6 +165,7 @@ export default function StockOutPage() {
         <td style="padding: 10px; text-align: center;">1</td>
       </tr>
     `).join('');
+
     printWindow.document.write(`
       <html>
         <head>
@@ -248,6 +249,7 @@ export default function StockOutPage() {
         'IMEI': item.imei,
         'Status': 'Draft Dispatch'
       }))
+
       const ws = XLSX.utils.json_to_sheet(exportRows)
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, ws, 'Stock_Out_Manifest')
@@ -275,6 +277,7 @@ export default function StockOutPage() {
         source_destination: storeName,
         notes: `Dispatch to ${storeName}, Priority: ${selection.priority}`
       }).select().single()
+
       if (txError) throw txError
       const itemIds = selection.items.map(i => i.id)
       await supabase.from('inventory_items').update({ status: 'SHIPPED', last_transaction_id: tx.id }).in('id', itemIds)
@@ -283,6 +286,7 @@ export default function StockOutPage() {
         acc[item.product_id] = (acc[item.product_id] || 0) + 1
         return acc
       }, {})
+
       for (const pid in productCounts) {
         const { data: prod } = await supabase.from('products').select('current_stock').eq('id', pid).single()
         await supabase.from('products').update({ current_stock: (prod?.current_stock || 0) - productCounts[pid] }).eq('id', pid)
@@ -299,10 +303,10 @@ export default function StockOutPage() {
   return (
     <div className="min-h-screen bg-[#0b1326] text-[#dae2fd] font-manrope">
       <main className="lg:pl-64 pt-20 p-6 max-w-7xl mx-auto space-y-10 pb-32">
-        <header className="flex justify-between items-center">
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
            <div className="space-y-1">
-             <h1 className="text-4xl font-black text-white uppercase italic tracking-tight">ORDERAN TOKO</h1>
-             <p className="text-[#8c9bbd] text-sm font-medium uppercase tracking-widest">kelola dan Proses Orderan dari Toko</p>
+             <h1 className="text-4xl font-black text-white uppercase italic tracking-tight">Order Fulfillment</h1>
+             <p className="text-[#8c9bbd] text-sm font-medium uppercase tracking-widest">Process store deployments</p>
            </div>
            <div className="flex gap-4">
               <button onClick={handlePrintInvoice} className="px-6 py-2 bg-white/5 border border-white/10 text-white rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-white/10 transition-all">
@@ -313,25 +317,26 @@ export default function StockOutPage() {
               </button>
            </div>
         </header>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
            <div className="lg:col-span-2 space-y-8">
               <section className="bg-[#131b2e]/60 p-8 rounded-[2.5rem] border border-white/5 shadow-2xl space-y-8">
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="space-y-2">
-                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd]">PILIH TOKO</label>
+                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd]">Destination Node</label>
                        <select 
                          value={selection.storeId}
                          onChange={(e) => setSelection({...selection, storeId: e.target.value})}
                          className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none appearance-none"
                        >
-                          <option value="">Pilih Nama Toko</option>
+                          <option value="">Select Destination Store</option>
                           {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                        </select>
                     </div>
                     <div className="space-y-2">
-                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd]">Prioritas Pengiriman</label>
+                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd]">Priority</label>
                        <div className="flex p-1 bg-[#0b1326] rounded-2xl border border-white/5">
-                          {['STANDARD', 'EXPRESS', 'URGENT'].map(p => (
+                          {['STANDARD', 'EXPRESS', 'CRITICAL'].map(p => (
                             <button key={p} type="button" onClick={() => setSelection({...selection, priority: p})} className={`flex-1 py-3 text-[10px] font-black rounded-xl transition-all ${selection.priority === p ? 'bg-[#2e5bff] text-white' : 'text-[#8c9bbd]'}`}>
                               {p}
                             </button>
@@ -340,13 +345,15 @@ export default function StockOutPage() {
                     </div>
                  </div>
               </section>
+
               <section className="bg-[#131b2e]/60 p-8 rounded-[2.5rem] border border-white/5 shadow-2xl space-y-8">
                  <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-2xl bg-[#4edea3]/10 flex items-center justify-center text-[#4edea3]">
                       <span className="material-icons">qr_code_scanner</span>
                     </div>
-                    <h3 className="text-xl font-black text-white uppercase">SCAN IMEI 1</h3>
+                    <h3 className="text-xl font-black text-white uppercase">Guided Fulfillment Scan</h3>
                  </div>
+
                  {isScanning && (
                    <div className="relative mb-8 rounded-[2rem] overflow-hidden border-2 border-[#2e5bff]/30 shadow-2xl bg-black aspect-video">
                       <div id="reader" className="w-full h-full"></div>
@@ -358,45 +365,59 @@ export default function StockOutPage() {
                       </div>
                    </div>
                  )}
+
                  <div className="flex gap-4">
                     <textarea 
-                      placeholder="Ketik atau Paste List IMEI 1 (Pisahkan dengan baris baru, koma, atau spasi)..."
+                      placeholder="Paste IMEI 1 List here..."
                       value={manualImei}
                       onChange={(e) => setManualImei(e.target.value)}
                       className="flex-1 bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none min-h-[120px] resize-none"
                     />
                     <div className="flex flex-col gap-2">
-                       <button onClick={isScanning ? stopScanner : startScanner} className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${isScanning ? 'bg-rose-500/20 text-rose-500 border border-rose-500/30' : 'bg-[#2e5bff]/10 text-[#2e5bff] border border-[#2e5bff]/20 hover:bg-[#2e5bff] hover:text-white'}`}>
+                       <button onClick={isScanning ? stopScanner : startScanner} className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${isScanning ? 'bg-rose-500/20 text-rose-500 border border-rose-500/30' : 'bg-[#2e5bff]/10 text-[#2e5bff] border border-[#2e5bff]/20 hover:bg-[#2e5bff] hover:text-white shadow-lg'}`}>
                           <span className="material-icons">{isScanning ? 'close' : 'photo_camera'}</span>
                        </button>
                     </div>
                  </div>
-                 <button onClick={() => validateAndAddImeis(manualImei)} className="w-full py-4 bg-[#2e5bff]/10 border border-[#2e5bff]/20 text-[#2e5bff] rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 hover:bg-[#2e5bff] hover:text-white">Verifikasi dan Antrikan</button>
+                 <button onClick={() => validateAndAddImeis(manualImei)} className="w-full py-4 bg-[#2e5bff]/10 border border-[#2e5bff]/20 text-[#2e5bff] rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 hover:bg-[#2e5bff] hover:text-white transition-all">Verify and Queue</button>
               </section>
+
               <section className="space-y-4">
-                 {selection.items.map((item, i) => (
-                    <div key={i} className="p-6 bg-[#131b2e]/60 border border-white/5 rounded-[2.5rem] flex justify-between items-center group transition-all hover:border-[#2e5bff]/30 shadow-xl">
-                       <div className="flex items-center gap-6">
-                          <span className="material-icons text-[#4edea3]">check_circle</span>
-                          <div>
-                             <h4 className="text-lg font-black text-white">{item.productName}</h4>
-                             <p className="text-[10px] font-mono font-bold text-[#8c9bbd] uppercase">IMEI: {item.imei}</p>
-                          </div>
-                       </div>
-                       <button onClick={() => setSelection(prev => ({...prev, items: prev.items.filter((_, idx) => idx !== i)}))} className="text-rose-500 opacity-20 hover:opacity-100 transition-all hover:bg-rose-500 hover:text-white">
-                          <span className="material-icons text-sm">delete_sweep</span>
-                       </button>
+                 {selection.items.length === 0 ? (
+                    <div className="p-16 border-2 border-dashed border-white/5 rounded-[2.5rem] flex flex-col items-center justify-center gap-4 opacity-20">
+                       <span className="material-icons text-5xl">inventory</span>
+                       <p className="text-xs font-black uppercase tracking-[0.3em]">No items in manifest</p>
                     </div>
-                 ))}
+                 ) : (
+                    selection.items.map((item, i) => (
+                      <div key={i} className="p-6 bg-[#131b2e]/60 border border-white/5 rounded-[2.5rem] flex justify-between items-center group transition-all hover:border-[#2e5bff]/30 shadow-xl">
+                         <div className="flex items-center gap-6">
+                            <span className="material-icons text-[#4edea3]">check_circle</span>
+                            <div>
+                               <h4 className="text-lg font-black text-white">{item.productName}</h4>
+                               <p className="text-[10px] font-mono font-bold text-[#8c9bbd] uppercase tracking-tighter">IMEI: <span className="text-white">{item.imei}</span></p>
+                            </div>
+                         </div>
+                         <button onClick={() => setSelection(prev => ({...prev, items: prev.items.filter((_, idx) => idx !== i)}))} className="text-rose-500 opacity-20 hover:opacity-100 transition-all hover:bg-rose-500 hover:text-white">
+                            <span className="material-icons text-sm">delete_sweep</span>
+                         </button>
+                      </div>
+                    ))
+                 )}
               </section>
            </div>
+
            <div className="space-y-6">
               <div className="bg-[#131b2e] p-8 rounded-[3rem] border border-white/5 shadow-2xl sticky top-28 space-y-10">
                  <div className="flex justify-between items-end bg-[#0b1326] p-8 rounded-[2rem] border border-white/5 shadow-inner">
                     <span className="text-xs font-bold text-[#8c9bbd] uppercase">Total Units</span>
                     <span className="text-7xl font-black text-[#4edea3] tracking-tighter">{selection.items.length.toString().padStart(2, '0')}</span>
                  </div>
-                 <button onClick={processOrder} disabled={loading || selection.items.length === 0 || !selection.storeId} className="w-full py-6 bg-gradient-to-br from-[#4e74ff] to-[#2e5bff] text-white rounded-[2rem] font-black text-lg shadow-xl active:scale-95 disabled:opacity-30">
+                 <button 
+                  onClick={processOrder} 
+                  disabled={loading || selection.items.length === 0 || !selection.storeId} 
+                  className="w-full py-6 bg-gradient-to-br from-[#4e74ff] to-[#2e5bff] text-white rounded-[2rem] font-black text-lg shadow-xl active:scale-95 disabled:opacity-30 transition-all"
+                >
                     {loading ? 'Processing...' : 'Submit Sell-In'}
                  </button>
               </div>
