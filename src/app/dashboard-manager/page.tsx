@@ -148,7 +148,7 @@ export default function DashboardManager() {
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#4e74ff] to-[#2e5bff] border-2 border-white/10 flex items-center justify-center shadow-lg">
              <span className="material-icons text-white">analytics</span>
           </div>
-          <span className="text-xl font-black text-white uppercase italic">NTT COMMAND CENTER</span>
+          <span className="text-xl font-black text-white uppercase italic">NUBIA NTT</span>
         </div>
         <div className="flex items-center gap-4 text-xs font-bold uppercase tracking-widest">
           <div><p className="opacity-40 mb-1">Start</p><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="bg-[#131b2e] border border-white/10 text-white rounded-xl px-4 py-2 outline-none focus:border-[#2e5bff]" /></div>
