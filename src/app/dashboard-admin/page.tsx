@@ -125,8 +125,8 @@ export default function AdminOverview() {
         const productSales = sales?.filter(s => {
            if (s.product_id !== product.id) return false
            if (selectedWarehouse !== 'ALL') {
-              // Try to match store with warehouse name loosely
-              return s.stores?.name?.toLowerCase().includes(selectedWName.split(' ')[0].toLowerCase())
+              const storeName = Array.isArray(s.stores) ? s.stores[0]?.name : (s.stores as any)?.name
+              return storeName?.toLowerCase().includes(selectedWName.split(' ')[0].toLowerCase())
            }
            return true
         })
