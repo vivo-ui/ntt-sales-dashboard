@@ -534,7 +534,7 @@ export default function DashboardManager() {
                                      await supabase.from('targets').insert({ user_id: pic.id, target_unit: valOut, target_sell_in: valIn, period_month: targetMonth })
                                      
                                   if (error) {
-                                     alert('Error: Pastikan Anda telah menjalankan perintah SQL untuk menambahkan kolom period_month dan target_sell_in!')
+                                     alert('Error: ' + error.message)
                                   } else {
                                      alert('Target berhasil diperbarui!')
                                      const { data: targetData } = await supabase.from('targets').select('*')
