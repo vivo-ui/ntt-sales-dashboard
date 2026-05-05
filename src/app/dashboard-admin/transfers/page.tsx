@@ -44,43 +44,54 @@ export default function WarehouseTransferPage() {
     setWarehouses(data || [])
   }
 
-  const validateAndAddImei = async (imei: string) => {
-    const cleanImei = imei.trim()
-    if (!cleanImei) return
-    
+  const validateAndAddImeis = async (imeiInput: string) => {
     if (!selection.sourceId) {
       alert('Mohon pilih Gudang Asal terlebih dahulu.')
       return
     }
 
-    if (selection.items.find(i => i.imei === cleanImei)) {
-      alert('IMEI sudah ada di daftar manifest.')
-      return
-    }
+    const imeiList = imeiInput
+      .split(/[\n, ]+/)
+      .map(item => item.trim())
+      .filter(item => item !== '')
+
+    if (imeiList.length === 0) return
 
     setLoading(true)
-    try {
-      const { data, error } = await supabase
-        .from('inventory_items')
-        .select('*, products(name)')
-        .eq('imei', cleanImei)
-        .eq('location_id', selection.sourceId)
-        .eq('status', 'IN_WAREHOUSE')
-        .single()
+    let failedImeis: string[] = []
 
-      if (data) {
-        setSelection(prev => ({
-          ...prev,
-          items: [...prev.items, { 
-            id: data.id, 
-            product_id: data.product_id, 
-            productName: data.products.name, 
-            imei: cleanImei 
-          }]
-        }))
-        setManualImei('')
-      } else {
-        alert('Eror: IMEI tidak ditemukan di gudang asal yang dipilih atau status tidak valid.')
+    try {
+      for (const imei of imeiList) {
+        if (selection.items.find(i => i.imei === imei)) {
+          continue;
+        }
+
+        const { data, error } = await supabase
+          .from('inventory_items')
+          .select('*, products(name)')
+          .eq('imei', imei)
+          .eq('location_id', selection.sourceId)
+          .eq('status', 'IN_WAREHOUSE')
+          .single()
+
+        if (data) {
+          setSelection(prev => ({
+            ...prev,
+            items: [...prev.items, { 
+              id: data.id, 
+              product_id: data.product_id, 
+              productName: data.products.name, 
+              imei: imei 
+            }]
+          }))
+        } else {
+          failedImeis.push(imei)
+        }
+      }
+      
+      setManualImei('')
+      if (failedImeis.length > 0) {
+        alert(`Peringatan: ${failedImeis.length} IMEI tidak ditemukan di Gudang Asal atau status tidak valid.`)
       }
     } catch (err) {
       console.error(err)
@@ -100,7 +111,7 @@ export default function WarehouseTransferPage() {
         await html5QrCode.start(
           { facingMode: "environment" }, 
           config, 
-          (decodedText) => validateAndAddImei(decodedText),
+          (decodedText) => validateAndAddImeis(decodedText),
           () => {}
         );
       } catch (err) {
@@ -238,14 +249,12 @@ export default function WarehouseTransferPage() {
 
                  <div className="flex gap-4">
                     <div className="flex-1 space-y-2">
-                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd] ml-1">Input Manual</label>
-                       <input 
-                         type="text" 
-                         placeholder="Scan atau Input IMEI 1..."
+                       <label className="text-[10px] font-bold uppercase tracking-widest text-[#8c9bbd] ml-1">Input Manual (Bisa Paste Sekaligus)</label>
+                       <textarea 
+                         placeholder="Paste atau Input IMEI (pisahkan dengan spasi, koma, atau baris baru)..."
                          value={manualImei}
                          onChange={(e) => setManualImei(e.target.value)}
-                         onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), validateAndAddImei(manualImei))}
-                         className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50 transition-all"
+                         className="w-full bg-[#0b1326] border border-white/5 rounded-2xl px-6 py-4 text-sm font-bold text-white outline-none focus:border-[#2e5bff]/50 min-h-[120px] resize-none transition-all"
                        />
                     </div>
                     <div className="pt-6">
@@ -260,7 +269,7 @@ export default function WarehouseTransferPage() {
                  </div>
                  <button 
                    type="button"
-                   onClick={() => validateAndAddImei(manualImei)}
+                   onClick={() => validateAndAddImeis(manualImei)}
                    disabled={!manualImei || loading}
                    className="w-full py-4 bg-[#2e5bff]/10 border border-[#2e5bff]/20 text-[#2e5bff] rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 disabled:opacity-30 transition-all hover:bg-[#2e5bff] hover:text-white"
                  >
